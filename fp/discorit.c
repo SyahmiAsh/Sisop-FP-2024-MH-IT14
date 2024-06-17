@@ -7,12 +7,10 @@
 #define PORT 8080
 #define BUFFER_SIZE 1024
 
-void send_command(int socket, const char *command) {
+void send_command(int socket, const char *command, char *response) {
     send(socket, command, strlen(command), 0);
-    char buffer[BUFFER_SIZE];
-    int bytes_read = read(socket, buffer, BUFFER_SIZE);
-    buffer[bytes_read] = '\0';
-    printf("Server response: %s\n", buffer);
+    int bytes_read = read(socket, response, BUFFER_SIZE);
+    response[bytes_read] = '\0';
 }
 
 int main(int argc, char *argv[]) {
@@ -24,6 +22,7 @@ int main(int argc, char *argv[]) {
     int client_socket;
     struct sockaddr_in server_addr;
     char buffer[BUFFER_SIZE];
+    char response[BUFFER_SIZE];
 
     client_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client_socket == -1) {
@@ -44,20 +43,26 @@ int main(int argc, char *argv[]) {
     // Send initial command (REGISTER or LOGIN)
     char initial_command[BUFFER_SIZE];
     snprintf(initial_command, BUFFER_SIZE, "%s %s -p %s", argv[1], argv[2], argv[4]);
-    send_command(client_socket, initial_command);
+    send_command(client_socket, initial_command, response);
+    printf("Server response: %s\n", response);
 
-    while (1) {
-        printf("Enter command: ");
-        if (fgets(buffer, BUFFER_SIZE, stdin) == NULL) {
-            break;
+    // Check if login was successful
+    if (strncmp(response + strlen(argv[2]), " berhasil login", 15) == 0) {
+        printf("[%s] ", argv[2]);
+        while (1) {
+            if (fgets(buffer, BUFFER_SIZE, stdin) == NULL) {
+                break;
+            }
+            buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
+
+            if (strcmp(buffer, "EXIT") == 0) {
+                break;
+            }
+
+            send_command(client_socket, buffer, response);
+            printf("Server response: %s\n", response);
+            printf("[%s] ", argv[2]);
         }
-        buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
-
-        if (strcmp(buffer, "EXIT") == 0) {
-            break;
-        }
-
-        send_command(client_socket, buffer);
     }
 
     close(client_socket);
