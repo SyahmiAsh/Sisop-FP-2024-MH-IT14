@@ -61,7 +61,14 @@ int main(int argc, char *argv[]) {
 
             send_command(client_socket, buffer, response);
             printf("Server response: %s\n", response);
-            printf("[%s] ", argv[2]);
+
+            // Check if the command was EDIT PROFILE SELF -u and update the prompt username if successful
+            if (strncmp(buffer, "EDIT PROFILE SELF -u ", 21) == 0 && strstr(response, "Profil diupdate") != NULL) {
+                char *new_username = buffer + 21;
+                strncpy(argv[2], new_username, BUFFER_SIZE); // Update the username
+            }
+
+            printf("[%s] ", argv[2]); // Use updated username
         }
     }
 
