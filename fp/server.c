@@ -9,25 +9,31 @@
 #include <sys/stat.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <signal.h> // Tambahkan header signal.h
+#include <signal.h>
 #include <bcrypt.h>
+#include <time.h>
 
 #define PORT 8080
 #define BUFFER_SIZE 1024
 #define FILE_PATH "/home/kali/Documents/fp/DiscorIT/users.csv"
+#define CHANNELS_PATH "/home/kali/Documents/fp/DiscorIT/channels.csv"
+#define BASE_PATH "/home/kali/Documents/fp/DiscorIT"
 
 void handle_client(int client_socket);
 void daemonize();
-void ensure_user_file_exists();
+void ensure_files_exist();
 bool register_user(const char *username, const char *password, char *response);
 bool login_user(const char *username, const char *password, char *response, char *role);
 void list_users(int client_socket);
 bool edit_user(const char *username, const char *new_username, const char *new_password, char *response);
 bool remove_user(const char *username, char *response);
 bool edit_profile_self(const char *current_username, const char *new_username, const char *new_password, char *response);
+bool create_channel(const char *channel, const char *key, const char *username, char *response);
+void list_channels(int client_socket);
+bool join_channel(const char *username, const char *channel, const char *key, char *response, char *role);
 
 int main() {
-    ensure_user_file_exists();
+    ensure_files_exist();
 
     int server_socket, client_socket;
     struct sockaddr_in server_addr, client_addr;
@@ -78,6 +84,7 @@ void handle_client(int client_socket) {
 
     char current_username[BUFFER_SIZE] = {0};
     char current_role[BUFFER_SIZE] = {0};
+    char current_channel[BUFFER_SIZE] = {0};
     bool is_logged_in = false;
 
     while ((bytes_read = read(client_socket, buffer, BUFFER_SIZE)) > 0) {
@@ -87,7 +94,7 @@ void handle_client(int client_socket) {
         char response[BUFFER_SIZE] = {0};
 
         char *command = strtok(buffer, " ");
-        printf("Debug: Command received: %s\n", command); // Debug statement
+        printf("Debug: Command received: %s\n", command);
 
         if (strcmp(command, "REGISTER") == 0) {
             char *username = strtok(NULL, " ");
@@ -115,9 +122,47 @@ void handle_client(int client_socket) {
                 } else {
                     snprintf(response, BUFFER_SIZE, "Permission denied");
                 }
-                continue; // Skip the default response write below
+                continue;
+            } else if (sub_command != NULL && strcmp(sub_command, "CHANNEL") == 0) {
+                if (is_logged_in) {
+                    list_channels(client_socket);
+                } else {
+                    snprintf(response, BUFFER_SIZE, "Please login first");
+                }
+                continue;
             } else {
                 snprintf(response, BUFFER_SIZE, "Unknown sub-command: %s", sub_command);
+            }
+        } else if (strcmp(command, "CREATE") == 0) {
+            char *sub_command = strtok(NULL, " ");
+            if (sub_command != NULL && strcmp(sub_command, "CHANNEL") == 0) {
+                if (is_logged_in && (strcmp(current_role, "ROOT") == 0 || strcmp(current_role, "USER") == 0)) {
+                    char *channel = strtok(NULL, " ");
+                    strtok(NULL, " "); // Skip -k
+                    char *key = strtok(NULL, " ");
+                    if (create_channel(channel, key, current_username, response)) {
+                        snprintf(response, BUFFER_SIZE, "Channel %s dibuat", channel);
+                    }
+                } else {
+                    snprintf(response, BUFFER_SIZE, "Permission denied");
+                }
+            }
+        } else if (strcmp(command, "JOIN") == 0) {
+            if (is_logged_in) {
+                char *channel = strtok(NULL, " ");
+                char *key = NULL;
+                if (strcmp(current_role, "USER") == 0) {
+                    write(client_socket, "Key: ", 5);
+                    bytes_read = read(client_socket, buffer, BUFFER_SIZE);
+                    buffer[bytes_read] = '\0';
+                    key = strtok(buffer, "\n");
+                }
+                if (join_channel(current_username, channel, key, response, current_role)) {
+                    snprintf(current_channel, BUFFER_SIZE, "%s", channel);
+                    snprintf(response, BUFFER_SIZE, "%s/%s", current_username, current_channel);
+                }
+            } else {
+                snprintf(response, BUFFER_SIZE, "Please login first");
             }
         } else if (strcmp(command, "EDIT") == 0) {
             char *sub_command = strtok(NULL, " ");
@@ -168,169 +213,41 @@ void handle_client(int client_socket) {
             } else {
                 snprintf(response, BUFFER_SIZE, "Permission denied");
             }
-        } else {
-            snprintf(response, BUFFER_SIZE, "Unknown command: %s", command);
+        } else if (strcmp(command, "LIST") == 0 && is_logged_in) {
+            char *sub_command = strtok(NULL, " ");
+            if (strcmp(sub_command, "USER") == 0 && current_channel[0] != '\0') {
+                char channel_user_path[BUFFER_SIZE];
+                snprintf(channel_user_path, BUFFER_SIZE, "%s/%s/admin/auth.csv", BASE_PATH, current_channel);
+                FILE *fp = fopen(channel_user_path, "r");
+                if (fp != NULL) {
+                    char line[BUFFER_SIZE];
+                    while (fgets(line, sizeof(line), fp)) {
+                        write(client_socket, line, strlen(line));
+                    }
+                    fclose(fp);
+                }
+                continue;
+            } else {
+                snprintf(response, BUFFER_SIZE, "Unknown sub-command: %s", sub_command);
+            }
         }
 
-        printf("Debug: Sending response: %s\n", response); // Debug statement
         write(client_socket, response, strlen(response));
     }
 
     close(client_socket);
 }
 
-
-void list_users(int client_socket) {
-    FILE *file = fopen(FILE_PATH, "r");
-    if (file == NULL) {
-        perror("Failed to open file");
-        return;
-    }
-
-    char line[BUFFER_SIZE];
-    char response[BUFFER_SIZE] = {0};
-
-    while (fgets(line, sizeof(line), file)) {
-        char username[BUFFER_SIZE];
-        sscanf(line, "%*d,%[^,],%*[^,],%*s", username);
-        strcat(response, username);
-        strcat(response, " ");
-    }
-
-    fclose(file);
-    write(client_socket, response, strlen(response));
-}
-
-bool edit_user(const char *username, const char *new_username, const char *new_password, char *response) {
-    FILE *file = fopen(FILE_PATH, "r+");
-    if (file == NULL) {
-        perror("Failed to open file");
-        return false;
-    }
-
-    char line[BUFFER_SIZE];
-    char temp_path[] = "/tmp/temp_users.csv";
-    FILE *temp_file = fopen(temp_path, "w");
-    if (temp_file == NULL) {
-        perror("Failed to open temp file");
-        fclose(file);
-        return false;
-    }
-
-    bool user_found = false;
-    while (fgets(line, sizeof(line), file)) {
-        char file_username[BUFFER_SIZE], file_password[BCRYPT_HASHSIZE], role[BUFFER_SIZE];
-        int id;
-        sscanf(line, "%d,%[^,],%[^,],%s", &id, file_username, file_password, role);
-
-        if (strcmp(file_username, username) == 0) {
-            user_found = true;
-            if (new_username != NULL) {
-                fprintf(temp_file, "%d,%s,%s,%s\n", id, new_username, file_password, role);
-            } else if (new_password != NULL) {
-                char salt[BCRYPT_HASHSIZE];
-                char encrypted_password[BCRYPT_HASHSIZE];
-
-                if (bcrypt_gensalt(12, salt) != 0) {
-                    perror("Error generating salt");
-                    fclose(file);
-                    fclose(temp_file);
-                    return false;
-                }
-                if (bcrypt_hashpw(new_password, salt, encrypted_password) != 0) {
-                    perror("Error hashing password");
-                    fclose(file);
-                    fclose(temp_file);
-                    return false;
-                }
-                fprintf(temp_file, "%d,%s,%s,%s\n", id, file_username, encrypted_password, role);
-            }
-        } else {
-            fprintf(temp_file, "%s", line);
-        }
-    }
-
-    fclose(file);
-    fclose(temp_file);
-
-    if (user_found) {
-        remove(FILE_PATH);
-        rename(temp_path, FILE_PATH);
-    } else {
-        remove(temp_path);
-        snprintf(response, BUFFER_SIZE, "user %s tidak ditemukan", username);
-    }
-
-    return user_found;
-}
-
-bool remove_user(const char *username, char *response) {
-    FILE *file = fopen(FILE_PATH, "r");
-    if (file == NULL) {
-        perror("Failed to open file");
-        return false;
-    }
-
-    char line[BUFFER_SIZE];
-    char temp_path[] = "/tmp/temp_users.csv";
-    FILE *temp_file = fopen(temp_path, "w");
-    if (temp_file == NULL) {
-        perror("Failed to open temp file");
-        fclose(file);
-        return false;
-    }
-
-    bool user_found = false;
-    while (fgets(line, sizeof(line), file)) {
-        char file_username[BUFFER_SIZE];
-        sscanf(line, "%*d,%[^,],%*[^,],%*s", file_username);
-
-        if (strcmp(file_username, username) == 0) {
-            user_found = true;
-            continue;
-        }
-
-        fprintf(temp_file, "%s", line);
-    }
-
-    fclose(file);
-    fclose(temp_file);
-
-    if (user_found) {
-        remove(FILE_PATH);
-        rename(temp_path, FILE_PATH);
-    } else {
-        remove(temp_path);
-        snprintf(response, BUFFER_SIZE, "user %s tidak ditemukan", username);
-    }
-
-    return user_found;
-}
-
-bool edit_profile_self(const char *current_username, const char *new_username, const char *new_password, char *response) {
-    return edit_user(current_username, new_username, new_password, response);
-}
-
 void daemonize() {
     pid_t pid = fork();
-    if (pid < 0) {
-        exit(EXIT_FAILURE);
-    }
-    if (pid > 0) {
-        exit(EXIT_SUCCESS);
-    }
-    if (setsid() < 0) {
-        exit(EXIT_FAILURE);
-    }
+    if (pid < 0) exit(EXIT_FAILURE);
+    if (pid > 0) exit(EXIT_SUCCESS);
+    if (setsid() < 0) exit(EXIT_FAILURE);
     signal(SIGCHLD, SIG_IGN);
     signal(SIGHUP, SIG_IGN);
     pid = fork();
-    if (pid < 0) {
-        exit(EXIT_FAILURE);
-    }
-    if (pid > 0) {
-        exit(EXIT_SUCCESS);
-    }
+    if (pid < 0) exit(EXIT_FAILURE);
+    if (pid > 0) exit(EXIT_SUCCESS);
     umask(0);
     chdir("/");
     for (int x = sysconf(_SC_OPEN_MAX); x >= 0; x--) {
@@ -338,86 +255,318 @@ void daemonize() {
     }
 }
 
-void ensure_user_file_exists() {
-    int fd = open(FILE_PATH, O_CREAT | O_RDWR, 0644);
-    if (fd < 0) {
-        perror("Failed to create file");
-        exit(EXIT_FAILURE);
-    }
-    close(fd);
+void ensure_files_exist() {
+    FILE *fp;
+
+    fp = fopen(FILE_PATH, "a");
+    if (fp != NULL) fclose(fp);
+
+    fp = fopen(CHANNELS_PATH, "a");
+    if (fp != NULL) fclose(fp);
 }
 
 bool register_user(const char *username, const char *password, char *response) {
-    FILE *file = fopen(FILE_PATH, "a+");
-    if (file == NULL) {
-        perror("Failed to open file");
+    FILE *fp = fopen(FILE_PATH, "r");
+    if (fp == NULL) {
+        snprintf(response, BUFFER_SIZE, "Cannot open users file");
         return false;
     }
 
     char line[BUFFER_SIZE];
-    while (fgets(line, sizeof(line), file)) {
+    while (fgets(line, sizeof(line), fp)) {
         char existing_username[BUFFER_SIZE];
-        sscanf(line, "%*d,%[^,],%*[^,],%*s", existing_username);
-
+        sscanf(line, "%*d,%[^,]", existing_username);
         if (strcmp(existing_username, username) == 0) {
-            snprintf(response, BUFFER_SIZE, "Username sudah terdaftar");
-            fclose(file);
+            snprintf(response, BUFFER_SIZE, "User %s already exists", username);
+            fclose(fp);
             return false;
         }
     }
+    fclose(fp);
 
     char salt[BCRYPT_HASHSIZE];
-    char encrypted_password[BCRYPT_HASHSIZE];
-
-    if (bcrypt_gensalt(12, salt) != 0) {
-        perror("Error generating salt");
-        fclose(file);
-        return false;
-    }
-    if (bcrypt_hashpw(password, salt, encrypted_password) != 0) {
-        perror("Error hashing password");
-        fclose(file);
+    char hashed_password[BCRYPT_HASHSIZE];
+    if (bcrypt_gensalt(12, salt) != 0 || bcrypt_hashpw(password, salt, hashed_password) != 0) {
+        snprintf(response, BUFFER_SIZE, "Password hashing failed");
         return false;
     }
 
-    int id = 1;
-    if (ftell(file) > 0) {
-        fseek(file, -BUFFER_SIZE, SEEK_END);
-        fgets(line, sizeof(line), file);
-        sscanf(line, "%d,", &id);
-        id++;
+    fp = fopen(FILE_PATH, "a");
+    if (fp == NULL) {
+        snprintf(response, BUFFER_SIZE, "Cannot open users file");
+        return false;
     }
 
-    fprintf(file, "%d,%s,%s,USER\n", id, username, encrypted_password);
-    fclose(file);
+    fseek(fp, 0, SEEK_END);
+    long id = ftell(fp) > 0 ? ftell(fp) + 1 : 1;
+    fprintf(fp, "%ld,%s,%s,%s\n", id, username, hashed_password, "USER");
+    fclose(fp);
     return true;
 }
 
 bool login_user(const char *username, const char *password, char *response, char *role) {
-    FILE *file = fopen(FILE_PATH, "r");
-    if (file == NULL) {
-        perror("Failed to open file");
+    FILE *fp = fopen(FILE_PATH, "r");
+    if (fp == NULL) {
+        snprintf(response, BUFFER_SIZE, "Cannot open users file");
         return false;
     }
 
     char line[BUFFER_SIZE];
-    bool login_successful = false;
-    while (fgets(line, sizeof(line), file)) {
-        char file_username[BUFFER_SIZE], file_password[BCRYPT_HASHSIZE], file_role[BUFFER_SIZE];
-        sscanf(line, "%*d,%[^,],%[^,],%s", file_username, file_password, file_role);
-
-        if (strcmp(file_username, username) == 0) {
-            if (bcrypt_checkpw(password, file_password) == 0) {
-                login_successful = true;
-                strncpy(role, file_role, BUFFER_SIZE);
-                snprintf(response, BUFFER_SIZE, "%s berhasil login", username);
-                break;
+    while (fgets(line, sizeof(line), fp)) {
+        char stored_username[BUFFER_SIZE];
+        char stored_password[BUFFER_SIZE];
+        sscanf(line, "%*d,%[^,],%[^,],%s", stored_username, stored_password, role);
+        if (strcmp(stored_username, username) == 0) {
+            fclose(fp);
+            if (bcrypt_checkpw(password, stored_password) == 0) {
+                return true;
             } else {
-                login_successful = false;
+                snprintf(response, BUFFER_SIZE, "Password incorrect");
+                return false;
             }
         }
     }
 
-    fclose(file);
-    return login_successful;
+    snprintf(response, BUFFER_SIZE, "User %s not found", username);
+    fclose(fp);
+    return false;
+}
+
+bool create_channel(const char *channel, const char *key, const char *username, char *response) {
+    FILE *fp = fopen(CHANNELS_PATH, "r");
+    if (fp == NULL) {
+        snprintf(response, BUFFER_SIZE, "Cannot open channels file");
+        return false;
+    }
+
+    char line[BUFFER_SIZE];
+    while (fgets(line, sizeof(line), fp)) {
+        char existing_channel[BUFFER_SIZE];
+        sscanf(line, "%*d,%[^,]", existing_channel);
+        if (strcmp(existing_channel, channel) == 0) {
+            snprintf(response, BUFFER_SIZE, "Channel %s already exists", channel);
+            fclose(fp);
+            return false;
+        }
+    }
+    fclose(fp);
+
+    char salt[BCRYPT_HASHSIZE];
+    char hashed_key[BCRYPT_HASHSIZE];
+    if (bcrypt_gensalt(12, salt) != 0 || bcrypt_hashpw(key, salt, hashed_key) != 0) {
+        snprintf(response, BUFFER_SIZE, "Key hashing failed");
+        return false;
+    }
+
+    fp = fopen(CHANNELS_PATH, "a");
+    if (fp == NULL) {
+        snprintf(response, BUFFER_SIZE, "Cannot open channels file");
+        return false;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    long id = ftell(fp) > 0 ? ftell(fp) + 1 : 1;
+    fprintf(fp, "%ld,%s,%s\n", id, channel, hashed_key);
+    fclose(fp);
+
+    char channel_path[BUFFER_SIZE];
+    snprintf(channel_path, BUFFER_SIZE, "%s/%s", BASE_PATH, channel);
+    mkdir(channel_path, 0755);
+    mkdir(strcat(channel_path, "/admin"), 0755);
+
+    snprintf(channel_path, BUFFER_SIZE, "%s/%s/admin/auth.csv", BASE_PATH, channel);
+    fp = fopen(channel_path, "a");
+    if (fp == NULL) {
+        snprintf(response, BUFFER_SIZE, "Cannot create auth file");
+        return false;
+    }
+    fprintf(fp, "id_user,name,role\n1,%s,ADMIN\n", username);
+    fclose(fp);
+
+    snprintf(channel_path, BUFFER_SIZE, "%s/%s/admin/users.log", BASE_PATH, channel);
+    fp = fopen(channel_path, "a");
+    if (fp != NULL) {
+        time_t now = time(NULL);
+        fprintf(fp, "[%02d/%02d/%02d %02d:%02d:%02d] %s buat %s\n",
+                localtime(&now)->tm_mday, localtime(&now)->tm_mon + 1, localtime(&now)->tm_year % 100,
+                localtime(&now)->tm_hour, localtime(&now)->tm_min, localtime(&now)->tm_sec,
+                username, channel);
+        fclose(fp);
+    }
+
+    return true;
+}
+
+
+void list_channels(int client_socket) {
+    FILE *fp = fopen(CHANNELS_PATH, "r");
+    if (fp == NULL) {
+        write(client_socket, "Cannot open channels file", 25);
+        return;
+    }
+
+    char line[BUFFER_SIZE];
+    while (fgets(line, sizeof(line), fp)) {
+        char channel[BUFFER_SIZE];
+        sscanf(line, "%*d,%[^,]", channel);
+        write(client_socket, channel, strlen(channel));
+        write(client_socket, " ", 1);
+    }
+    fclose(fp);
+}
+
+bool join_channel(const char *username, const char *channel, const char *key, char *response, char *role) {
+    FILE *fp = fopen(CHANNELS_PATH, "r");
+    if (fp == NULL) {
+        snprintf(response, BUFFER_SIZE, "Cannot open channels file");
+        return false;
+    }
+
+    char line[BUFFER_SIZE];
+    char stored_key[BCRYPT_HASHSIZE];
+    bool channel_found = false;
+    while (fgets(line, sizeof(line), fp)) {
+        char stored_channel[BUFFER_SIZE];
+        sscanf(line, "%*d,%[^,],%s", stored_channel, stored_key);
+        if (strcmp(stored_channel, channel) == 0) {
+            channel_found = true;
+            break;
+        }
+    }
+    fclose(fp);
+
+    if (!channel_found) {
+        snprintf(response, BUFFER_SIZE, "Channel %s not found", channel);
+        return false;
+    }
+
+    if (strcmp(role, "USER") == 0 && bcrypt_checkpw(key, stored_key) != 0) {
+        snprintf(response, BUFFER_SIZE, "Incorrect key for channel %s", channel);
+        return false;
+    }
+
+    char channel_path[BUFFER_SIZE];
+    snprintf(channel_path, BUFFER_SIZE, "%s/%s/admin/users.log", BASE_PATH, channel);
+    fp = fopen(channel_path, "a");
+    if (fp != NULL) {
+        time_t now = time(NULL);
+        fprintf(fp, "[%02d/%02d/%02d %02d:%02d:%02d] %s masuk ke %s\n",
+                localtime(&now)->tm_mday, localtime(&now)->tm_mon + 1, localtime(&now)->tm_year % 100,
+                localtime(&now)->tm_hour, localtime(&now)->tm_min, localtime(&now)->tm_sec,
+                username, channel);
+        fclose(fp);
+    }
+
+    return true;
+}
+
+bool edit_user(const char *username, const char *new_username, const char *new_password, char *response) {
+    FILE *fp = fopen(FILE_PATH, "r+");
+    if (fp == NULL) {
+        snprintf(response, BUFFER_SIZE, "Cannot open users file");
+        return false;
+    }
+
+    char line[BUFFER_SIZE];
+    char new_file_content[BUFFER_SIZE * 10] = {0};
+    bool user_found = false;
+    while (fgets(line, sizeof(line), fp)) {
+        char stored_username[BUFFER_SIZE];
+        sscanf(line, "%*d,%[^,]", stored_username);
+        if (strcmp(stored_username, username) == 0) {
+            user_found = true;
+            char id[BUFFER_SIZE];
+            char stored_password[BUFFER_SIZE];
+            char role[BUFFER_SIZE];
+            sscanf(line, "%[^,],%*[^,],%[^,],%s", id, stored_password, role);
+            if (new_username) {
+                snprintf(line, BUFFER_SIZE, "%s,%s,%s,%s\n", id, new_username, stored_password, role);
+            } else if (new_password) {
+                char salt[BCRYPT_HASHSIZE];
+                char hashed_password[BCRYPT_HASHSIZE];
+                if (bcrypt_gensalt(12, salt) != 0 || bcrypt_hashpw(new_password, salt, hashed_password) != 0) {
+                    snprintf(response, BUFFER_SIZE, "Password hashing failed");
+                    fclose(fp);
+                    return false;
+                }
+                snprintf(line, BUFFER_SIZE, "%s,%s,%s,%s\n", id, stored_username, hashed_password, role);
+            }
+        }
+        strncat(new_file_content, line, BUFFER_SIZE * 10);
+    }
+
+    if (!user_found) {
+        snprintf(response, BUFFER_SIZE, "User %s not found", username);
+        fclose(fp);
+        return false;
+    }
+
+    fp = freopen(FILE_PATH, "w", fp);
+    if (fp == NULL) {
+        snprintf(response, BUFFER_SIZE, "Cannot open users file");
+        return false;
+    }
+
+    fputs(new_file_content, fp);
+    fclose(fp);
+    return true;
+}
+
+
+bool edit_profile_self(const char *current_username, const char *new_username, const char *new_password, char *response) {
+    return edit_user(current_username, new_username, new_password, response);
+}
+
+bool remove_user(const char *username, char *response) {
+    FILE *fp = fopen(FILE_PATH, "r");
+    if (fp == NULL) {
+        snprintf(response, BUFFER_SIZE, "Cannot open users file");
+        return false;
+    }
+
+    char line[BUFFER_SIZE];
+    char new_file_content[BUFFER_SIZE * 10] = {0};
+    bool user_found = false;
+    while (fgets(line, sizeof(line), fp)) {
+        char stored_username[BUFFER_SIZE];
+        sscanf(line, "%*d,%[^,]", stored_username);
+        if (strcmp(stored_username, username) != 0) {
+            strncat(new_file_content, line, BUFFER_SIZE * 10);
+        } else {
+            user_found = true;
+        }
+    }
+    fclose(fp);
+
+    if (!user_found) {
+        snprintf(response, BUFFER_SIZE, "User %s not found", username);
+        return false;
+    }
+
+    fp = fopen(FILE_PATH, "w");
+    if (fp == NULL) {
+        snprintf(response, BUFFER_SIZE, "Cannot open users file");
+        return false;
+    }
+
+    fputs(new_file_content, fp);
+    fclose(fp);
+    return true;
+}
+
+void list_users(int client_socket) {
+    FILE *fp = fopen(FILE_PATH, "r");
+    if (fp == NULL) {
+        write(client_socket, "Cannot open users file", 23);
+        return;
+    }
+
+    char line[BUFFER_SIZE];
+    while (fgets(line, sizeof(line), fp)) {
+        char username[BUFFER_SIZE];
+        sscanf(line, "%*d,%[^,]", username);
+        write(client_socket, username, strlen(username));
+        write(client_socket, " ", 1);
+    }
+    fclose(fp);
 }
