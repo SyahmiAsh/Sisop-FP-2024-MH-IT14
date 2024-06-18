@@ -13,6 +13,24 @@ void send_command(int socket, const char *command, char *response) {
     response[bytes_read] = '\0';
 }
 
+void connect_to_server(int *client_socket, struct sockaddr_in *server_addr) {
+    *client_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (*client_socket == -1) {
+        perror("Failed to create socket");
+        exit(EXIT_FAILURE);
+    }
+
+    server_addr->sin_family = AF_INET;
+    server_addr->sin_port = htons(PORT);
+    server_addr->sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    if (connect(*client_socket, (struct sockaddr *)server_addr, sizeof(*server_addr)) < 0) {
+        perror("Connection failed");
+        close(*client_socket);
+        exit(EXIT_FAILURE);
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 5) {
         fprintf(stderr, "Usage: %s <REGISTER|LOGIN> <username> -p <password>\n", argv[0]);
@@ -23,52 +41,75 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in server_addr;
     char buffer[BUFFER_SIZE];
     char response[BUFFER_SIZE];
+    char prompt[BUFFER_SIZE];
 
-    client_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (client_socket == -1) {
-        perror("Failed to create socket");
-        exit(EXIT_FAILURE);
-    }
-
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(PORT);
-    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-
-    if (connect(client_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Connection failed");
-        close(client_socket);
-        exit(EXIT_FAILURE);
-    }
+    // Connect to the server
+    connect_to_server(&client_socket, &server_addr);
 
     // Send initial command (REGISTER or LOGIN)
-    char initial_command[BUFFER_SIZE];
-    snprintf(initial_command, BUFFER_SIZE, "%s %s -p %s", argv[1], argv[2], argv[4]);
-    send_command(client_socket, initial_command, response);
+    snprintf(buffer, BUFFER_SIZE, "%s %s -p %s", argv[1], argv[2], argv[4]);
+    send_command(client_socket, buffer, response);
     printf("Server response: %s\n", response);
 
-    // Check if login was successful
-    if (strncmp(response + strlen(argv[2]), " berhasil login", 15) == 0) {
-        printf("[%s] ", argv[2]);
+    if (strstr(response, "berhasil login") != NULL) {
+        snprintf(prompt, BUFFER_SIZE, "[%s] ", argv[2]);
+        printf("%s", prompt);
+
         while (1) {
             if (fgets(buffer, BUFFER_SIZE, stdin) == NULL) {
                 break;
             }
             buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
 
+            // Handle different commands
             if (strcmp(buffer, "EXIT") == 0) {
                 break;
+            } else if (strncmp(buffer, "JOIN ", 5) == 0) {
+                char channel_name[BUFFER_SIZE];
+                sscanf(buffer, "JOIN %s", channel_name);
+
+                // Send JOIN command
+                send_command(client_socket, buffer, response);
+
+                // If key is required, prompt for it
+                if (strstr(response, "Key:") != NULL) {
+                    printf("Key: ");
+                    if (fgets(buffer, BUFFER_SIZE, stdin) == NULL) {
+                        break;
+                    }
+                    buffer[strcspn(buffer, "\n")] = '\0'; // Remove newline character
+                    char key_command[BUFFER_SIZE];
+                    snprintf(key_command, BUFFER_SIZE, "JOIN %s -k %s", channel_name, buffer);
+                    send_command(client_socket, key_command, response);
+                }
+                // Update prompt
+                snprintf(prompt, BUFFER_SIZE, "[%s/%s] ", argv[2], channel_name);
+            } else if (strncmp(buffer, "CREATE CHANNEL ", 15) == 0) {
+                // Send CREATE CHANNEL command
+                send_command(client_socket, buffer, response);
+                printf("Server response: %s\n", response);
+                continue;
+            } else if (strncmp(buffer, "LIST", 4) == 0) {
+                // Send LIST command
+                send_command(client_socket, buffer, response);
+                printf("Server response: %s\n", response);
+                continue;
+            } else if (strncmp(buffer, "EDIT PROFILE SELF -u ", 21) == 0) {
+                // Handle EDIT PROFILE SELF -u command
+                send_command(client_socket, buffer, response);
+                printf("Server response: %s\n", response);
+                if (strstr(response, "Profil diupdate") != NULL) {
+                    char *new_username = buffer + 21;
+                    argv[2] = strdup(new_username); // Allocate new memory for the updated username
+                    snprintf(prompt, BUFFER_SIZE, "[%s] ", new_username);
+                }
+                continue;
             }
 
+            // Send other commands
             send_command(client_socket, buffer, response);
             printf("Server response: %s\n", response);
-
-            // Check if the command was EDIT PROFILE SELF -u and update the prompt username if successful
-            if (strncmp(buffer, "EDIT PROFILE SELF -u ", 21) == 0 && strstr(response, "Profil diupdate") != NULL) {
-                char *new_username = buffer + 21;
-                strncpy(argv[2], new_username, BUFFER_SIZE); // Update the username
-            }
-
-            printf("[%s] ", argv[2]); // Use updated username
+            printf("%s", prompt); // Use updated prompt
         }
     }
 
