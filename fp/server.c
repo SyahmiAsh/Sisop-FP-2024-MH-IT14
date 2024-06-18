@@ -19,7 +19,6 @@
 #define CHANNELS_PATH "/home/kali/Documents/fp/DiscorIT/channels.csv"
 #define BASE_PATH "/home/kali/Documents/fp/DiscorIT"
 
-void handle_client(int client_socket);
 void daemonize();
 void ensure_files_exist();
 bool register_user(const char *username, const char *password, char *response);
@@ -31,6 +30,22 @@ bool edit_profile_self(const char *current_username, const char *new_username, c
 bool create_channel(const char *channel, const char *key, const char *username, char *response);
 void list_channels(int client_socket);
 bool join_channel(const char *username, const char *channel, const char *key, char *response, char *role);
+void list_users_in_channel(const char *channel_name, int client_socket) ;
+bool delete_channel(const char *username, const char *channel, char *response);
+bool edit_channel(const char *username, const char *old_channel, const char *new_channel, char *response);
+void log_activity(const char *username, const char *activity) ;
+bool edit_channel(const char *username, const char *old_channel, const char *new_channel, char *response);
+bool delete_channel(const char *username, const char *channel, char *response);
+void send_response(int client_socket, const char *response);
+void handle_register(char *username, char *password, char *response);
+bool handle_login(char *username, char *password, char *current_role, char *current_username, char *response);
+void handle_list(char *sub_command, bool is_logged_in, char *current_role, char *current_channel, int client_socket, char *response);
+void handle_create(char *sub_command, bool is_logged_in, char *current_role, char *current_username, char *response);
+void handle_join(char *current_username, char *current_role, bool is_logged_in, char *current_channel, int client_socket, char *response);
+void handle_edit(char *sub_command, char *current_username, char *current_role, bool is_logged_in, char *response);
+void handle_delete(char *sub_command, char *current_username, char *current_role, bool is_logged_in, char *response);
+void handle_client(int client_socket);
+
 
 int main() {
     ensure_files_exist();
@@ -77,7 +92,196 @@ int main() {
     close(server_socket);
     return 0;
 }
+// Fungsi untuk mencatat aktivitas ke dalam users.log
+void log_activity(const char *username, const char *activity) {
+    char log_path[BUFFER_SIZE];
+    snprintf(log_path, BUFFER_SIZE, "%s/users.log", BASE_PATH);
+    FILE *log_file = fopen(log_path, "a");
+    if (log_file != NULL) {
+        fprintf(log_file, "[%s] %s\n", username, activity);
+        fclose(log_file);
+    }
+}
 
+// Fungsi untuk mengirim respon ke client
+void send_response(int client_socket, const char *response) {
+    write(client_socket, response, strlen(response));
+}
+
+// Fungsi untuk menangani command REGISTER
+void handle_register(char *username, char *password, char *response) {
+    if (register_user(username, password, response)) {
+        snprintf(response, BUFFER_SIZE, "%s berhasil register", username);
+    }
+}
+
+// Fungsi untuk menangani command LOGIN
+bool handle_login(char *username, char *password, char *current_role, char *current_username, char *response) {
+    if (login_user(username, password, response, current_role)) {
+        snprintf(response, BUFFER_SIZE, "%s berhasil login", username);
+        strncpy(current_username, username, BUFFER_SIZE);
+        return true;
+    } else {
+        snprintf(response, BUFFER_SIZE, "username atau password salah");
+        return false;
+    }
+}
+
+// Fungsi untuk menangani command LIST
+void handle_list(char *sub_command, bool is_logged_in, char *current_role, char *current_channel, int client_socket, char *response) {
+    if (strcmp(sub_command, "USER") == 0) {
+        if (is_logged_in) {
+            if (current_channel[0] != '\0') {
+                char channel_user_path[BUFFER_SIZE];
+                snprintf(channel_user_path, BUFFER_SIZE, "%s/%s/admin/auth.csv", BASE_PATH, current_channel);
+                FILE *fp = fopen(channel_user_path, "r");
+                if (fp != NULL) {
+                    char line[BUFFER_SIZE];
+                    fgets(line, sizeof(line), fp); // Skip header
+                    while (fgets(line, sizeof(line), fp)) {
+                        char *token = strtok(line, ",");
+                        token = strtok(NULL, ","); // Get username
+                        strcat(response, token);
+                        strcat(response, " ");
+                    }
+                    fclose(fp);
+                    // Remove trailing space
+                    if (strlen(response) > 0) {
+                        response[strlen(response) - 1] = '\0';
+                    }
+                } else {
+                    snprintf(response, BUFFER_SIZE, "Failed to open auth.csv");
+                }
+            } else {
+                snprintf(response, BUFFER_SIZE, "Not in a channel");
+            }
+        } else {
+            snprintf(response, BUFFER_SIZE, "Please login first");
+        }
+        send_response(client_socket, response);
+    } else if (strcmp(sub_command, "CHANNEL") == 0) {
+        if (is_logged_in) {
+            list_channels(client_socket);
+        } else {
+            snprintf(response, BUFFER_SIZE, "Please login first");
+            send_response(client_socket, response);
+        }
+    } else {
+        snprintf(response, BUFFER_SIZE, "Unknown sub-command: %s", sub_command);
+        send_response(client_socket, response);
+    }
+}
+
+// Fungsi untuk menangani command CREATE
+void handle_create(char *sub_command, bool is_logged_in, char *current_role, char *current_username, char *response) {
+    if (strcmp(sub_command, "CHANNEL") == 0) {
+        if (is_logged_in && (strcmp(current_role, "ROOT") == 0 || strcmp(current_role, "USER") == 0)) {
+            char *channel = strtok(NULL, " ");
+            strtok(NULL, " "); // Skip -k
+            char *key = strtok(NULL, " ");
+            if (create_channel(channel, key, current_username, response)) {
+                snprintf(response, BUFFER_SIZE, "Channel %s dibuat", channel);
+            }
+        } else {
+            snprintf(response, BUFFER_SIZE, "Permission denied");
+        }
+    }
+}
+
+// Fungsi untuk menangani command JOIN
+void handle_join(char *current_username, char *current_role, bool is_logged_in, char *current_channel, int client_socket, char *response) {
+    if (is_logged_in) {
+        char *channel = strtok(NULL, " ");
+        char *key = NULL;
+        if (strcmp(current_role, "USER") == 0) {
+            write(client_socket, "Key: ", 5);
+            int bytes_read = read(client_socket, response, BUFFER_SIZE);
+            response[bytes_read] = '\0';
+            key = strtok(response, "\n");
+        }
+        if (join_channel(current_username, channel, key, response, current_role)) {
+            snprintf(current_channel, BUFFER_SIZE, "%s", channel);
+            snprintf(response, BUFFER_SIZE, "%s/%s", current_username, current_channel);
+        }
+    } else {
+        snprintf(response, BUFFER_SIZE, "Please login first");
+    }
+}
+
+// Fungsi untuk menangani command EDIT
+void handle_edit(char *sub_command, char *current_username, char *current_role, bool is_logged_in, char *response) {
+    if (strcmp(sub_command, "CHANNEL") == 0) {
+        char *old_channel = strtok(NULL, " ");
+        strtok(NULL, " "); // Skip "TO"
+        char *new_channel = strtok(NULL, " ");
+        if (edit_channel(current_username, old_channel, new_channel, response)) {
+            snprintf(response, BUFFER_SIZE, "%s berhasil diubah menjadi %s", old_channel, new_channel);
+        }
+    } else if (strcmp(sub_command, "WHERE") == 0) {
+        if (is_logged_in && strcmp(current_role, "ROOT") == 0) {
+            char *username = strtok(NULL, " ");
+            char *option = strtok(NULL, " ");
+            if (strcmp(option, "-u") == 0) {
+                char *new_username = strtok(NULL, " ");
+                if (edit_user(username, new_username, NULL, response)) {
+                    snprintf(response, BUFFER_SIZE, "user %s berhasil diubah menjadi %s", username, new_username);
+                }
+            } else if (strcmp(option, "-p") == 0) {
+                char *new_password = strtok(NULL, " ");
+                if (edit_user(username, NULL, new_password, response)) {
+                    snprintf(response, BUFFER_SIZE, "password user %s berhasil diubah", username);
+                }
+            }
+        } else {
+            snprintf(response, BUFFER_SIZE, "Permission denied");
+        }
+    } else if (strcmp(sub_command, "PROFILE") == 0 && is_logged_in) {
+        char *profile_command = strtok(NULL, " ");
+        if (strcmp(profile_command, "SELF") == 0) {
+            char *option = strtok(NULL, " ");
+            if (strcmp(option, "-u") == 0) {
+                char *new_username = strtok(NULL, " ");
+                if (edit_profile_self(current_username, new_username, NULL, response)) {
+                    snprintf(response, BUFFER_SIZE, "Profil diupdate\n%s", new_username);
+                    strncpy(current_username, new_username, BUFFER_SIZE);
+                }
+            } else if (strcmp(option, "-p") == 0) {
+                char *new_password = strtok(NULL, " ");
+                if (edit_profile_self(current_username, NULL, new_password, response)) {
+                    snprintf(response, BUFFER_SIZE, "Password diupdate");
+                }
+            }
+        }
+    } else {
+        snprintf(response, BUFFER_SIZE, "Unknown sub-command: %s", sub_command);
+    }
+}
+
+
+
+// Fungsi untuk menangani command DELETE
+void handle_delete(char *sub_command, char *current_username, char *current_role, bool is_logged_in, char *response) {
+    if (strcmp(sub_command, "CHANNEL") == 0) {
+        char *channel = strtok(NULL, " ");
+        if (delete_channel(current_username, channel, response)) {
+            snprintf(response, BUFFER_SIZE, "Channel %s berhasil dihapus", channel);
+        }
+    } else if (strcmp(sub_command, "USER") == 0) {
+        if (is_logged_in && strcmp(current_role, "ROOT") == 0) {
+            char *username = strtok(NULL, " ");
+            if (remove_user(username, response)) {
+                snprintf(response, BUFFER_SIZE, "user %s berhasil dihapus", username);
+            }
+        } else {
+            snprintf(response, BUFFER_SIZE, "Permission denied");
+        }
+    } else {
+        snprintf(response, BUFFER_SIZE, "Unknown sub-command: %s", sub_command);
+    }
+}
+
+
+// Fungsi untuk menangani client
 void handle_client(int client_socket) {
     char buffer[BUFFER_SIZE];
     int bytes_read;
@@ -100,136 +304,31 @@ void handle_client(int client_socket) {
             char *username = strtok(NULL, " ");
             strtok(NULL, " "); // Skip -p
             char *password = strtok(NULL, " ");
-            if (register_user(username, password, response)) {
-                snprintf(response, BUFFER_SIZE, "%s berhasil register", username);
-            }
+            handle_register(username, password, response);
         } else if (strcmp(command, "LOGIN") == 0) {
             char *username = strtok(NULL, " ");
             strtok(NULL, " "); // Skip -p
             char *password = strtok(NULL, " ");
-            if (login_user(username, password, response, current_role)) {
-                snprintf(response, BUFFER_SIZE, "%s berhasil login", username);
-                strncpy(current_username, username, BUFFER_SIZE);
+            if (handle_login(username, password, current_role, current_username, response)) {
                 is_logged_in = true;
-            } else {
-                snprintf(response, BUFFER_SIZE, "username atau password salah");
             }
         } else if (strcmp(command, "LIST") == 0) {
             char *sub_command = strtok(NULL, " ");
-            if (sub_command != NULL && strcmp(sub_command, "USER") == 0) {
-                if (is_logged_in && strcmp(current_role, "ROOT") == 0) {
-                    list_users(client_socket);
-                } else {
-                    snprintf(response, BUFFER_SIZE, "Permission denied");
-                }
-                continue;
-            } else if (sub_command != NULL && strcmp(sub_command, "CHANNEL") == 0) {
-                if (is_logged_in) {
-                    list_channels(client_socket);
-                } else {
-                    snprintf(response, BUFFER_SIZE, "Please login first");
-                }
-                continue;
-            } else {
-                snprintf(response, BUFFER_SIZE, "Unknown sub-command: %s", sub_command);
-            }
+            handle_list(sub_command, is_logged_in, current_role, current_channel, client_socket, response);
+            continue;
         } else if (strcmp(command, "CREATE") == 0) {
             char *sub_command = strtok(NULL, " ");
-            if (sub_command != NULL && strcmp(sub_command, "CHANNEL") == 0) {
-                if (is_logged_in && (strcmp(current_role, "ROOT") == 0 || strcmp(current_role, "USER") == 0)) {
-                    char *channel = strtok(NULL, " ");
-                    strtok(NULL, " "); // Skip -k
-                    char *key = strtok(NULL, " ");
-                    if (create_channel(channel, key, current_username, response)) {
-                        snprintf(response, BUFFER_SIZE, "Channel %s dibuat", channel);
-                    }
-                } else {
-                    snprintf(response, BUFFER_SIZE, "Permission denied");
-                }
-            }
+            handle_create(sub_command, is_logged_in, current_role, current_username, response);
         } else if (strcmp(command, "JOIN") == 0) {
-            if (is_logged_in) {
-                char *channel = strtok(NULL, " ");
-                char *key = NULL;
-                if (strcmp(current_role, "USER") == 0) {
-                    write(client_socket, "Key: ", 5);
-                    bytes_read = read(client_socket, buffer, BUFFER_SIZE);
-                    buffer[bytes_read] = '\0';
-                    key = strtok(buffer, "\n");
-                }
-                if (join_channel(current_username, channel, key, response, current_role)) {
-                    snprintf(current_channel, BUFFER_SIZE, "%s", channel);
-                    snprintf(response, BUFFER_SIZE, "%s/%s", current_username, current_channel);
-                }
-            } else {
-                snprintf(response, BUFFER_SIZE, "Please login first");
-            }
+            handle_join(current_username, current_role, is_logged_in, current_channel, client_socket, response);
         } else if (strcmp(command, "EDIT") == 0) {
             char *sub_command = strtok(NULL, " ");
-            if (strcmp(sub_command, "WHERE") == 0) {
-                if (is_logged_in && strcmp(current_role, "ROOT") == 0) {
-                    char *username = strtok(NULL, " ");
-                    char *option = strtok(NULL, " ");
-                    if (strcmp(option, "-u") == 0) {
-                        char *new_username = strtok(NULL, " ");
-                        if (edit_user(username, new_username, NULL, response)) {
-                            snprintf(response, BUFFER_SIZE, "user %s berhasil diubah menjadi %s", username, new_username);
-                        }
-                    } else if (strcmp(option, "-p") == 0) {
-                        char *new_password = strtok(NULL, " ");
-                        if (edit_user(username, NULL, new_password, response)) {
-                            snprintf(response, BUFFER_SIZE, "password user %s berhasil diubah", username);
-                        }
-                    }
-                } else {
-                    snprintf(response, BUFFER_SIZE, "Permission denied");
-                }
-            } else if (strcmp(sub_command, "PROFILE") == 0 && is_logged_in) {
-                char *profile_command = strtok(NULL, " ");
-                if (strcmp(profile_command, "SELF") == 0) {
-                    char *option = strtok(NULL, " ");
-                    if (strcmp(option, "-u") == 0) {
-                        char *new_username = strtok(NULL, " ");
-                        if (edit_profile_self(current_username, new_username, NULL, response)) {
-                            snprintf(response, BUFFER_SIZE, "Profil diupdate\n%s", new_username);
-                            strncpy(current_username, new_username, BUFFER_SIZE);
-                        }
-                    } else if (strcmp(option, "-p") == 0) {
-                        char *new_password = strtok(NULL, " ");
-                        if (edit_profile_self(current_username, NULL, new_password, response)) {
-                            snprintf(response, BUFFER_SIZE, "Password diupdate");
-                        }
-                    }
-                }
-            } else {
-                snprintf(response, BUFFER_SIZE, "Unknown sub-command: %s", sub_command);
-            }
-        } else if (strcmp(command, "REMOVE") == 0) {
-            if (is_logged_in && strcmp(current_role, "ROOT") == 0) {
-                char *username = strtok(NULL, " ");
-                if (remove_user(username, response)) {
-                    snprintf(response, BUFFER_SIZE, "user %s berhasil dihapus", username);
-                }
-            } else {
-                snprintf(response, BUFFER_SIZE, "Permission denied");
-            }
-        } else if (strcmp(command, "LIST") == 0 && is_logged_in) {
+            handle_edit(sub_command, current_username, current_role, is_logged_in, response);
+        } else if (strcmp(command, "DELETE") == 0) {
             char *sub_command = strtok(NULL, " ");
-            if (strcmp(sub_command, "USER") == 0 && current_channel[0] != '\0') {
-                char channel_user_path[BUFFER_SIZE];
-                snprintf(channel_user_path, BUFFER_SIZE, "%s/%s/admin/auth.csv", BASE_PATH, current_channel);
-                FILE *fp = fopen(channel_user_path, "r");
-                if (fp != NULL) {
-                    char line[BUFFER_SIZE];
-                    while (fgets(line, sizeof(line), fp)) {
-                        write(client_socket, line, strlen(line));
-                    }
-                    fclose(fp);
-                }
-                continue;
-            } else {
-                snprintf(response, BUFFER_SIZE, "Unknown sub-command: %s", sub_command);
-            }
+            handle_delete(sub_command, current_username, current_role, is_logged_in, response);
+        } else {
+            snprintf(response, BUFFER_SIZE, "Unknown command: %s", command);
         }
 
         write(client_socket, response, strlen(response));
@@ -569,4 +668,139 @@ void list_users(int client_socket) {
         write(client_socket, " ", 1);
     }
     fclose(fp);
+}
+void list_users_in_channel(const char *channel_name, int client_socket) {
+    char filepath[BUFFER_SIZE];
+    snprintf(filepath, BUFFER_SIZE, "./%s/admin/auth.csv", channel_name);
+    
+    FILE *file = fopen(filepath, "r");
+    if (!file) {
+        send(client_socket, "Failed to open auth.csv", strlen("Failed to open auth.csv"), 0);
+        return;
+    }
+    
+    char line[BUFFER_SIZE];
+    char response[BUFFER_SIZE] = "";
+    
+    // Skip header
+    fgets(line, sizeof(line), file);
+
+    // Read each line and append user name to response
+    while (fgets(line, sizeof(line), file)) {
+        char *token = strtok(line, ",");
+        token = strtok(NULL, ","); // username is the second column
+        strcat(response, token);
+        strcat(response, " ");
+    }
+    fclose(file);
+    
+    // Remove trailing space
+    if (strlen(response) > 0) {
+        response[strlen(response) - 1] = '\0';
+    }
+    
+    send(client_socket, response, strlen(response), 0);
+}
+
+// Fungsi untuk mengedit channel
+bool edit_channel(const char *username, const char *old_channel, const char *new_channel, char *response) {
+    char channel_path[BUFFER_SIZE];
+    snprintf(channel_path, BUFFER_SIZE, "%s/channel.csv", BASE_PATH);
+
+    FILE *file = fopen(channel_path, "r+");
+    if (!file) {
+        snprintf(response, BUFFER_SIZE, "Failed to open channel.csv");
+        return false;
+    }
+
+    char temp_path[BUFFER_SIZE];
+    snprintf(temp_path, BUFFER_SIZE, "%s/temp.csv", BASE_PATH);
+    FILE *temp_file = fopen(temp_path, "w");
+    if (!temp_file) {
+        fclose(file);
+        snprintf(response, BUFFER_SIZE, "Failed to create temporary file");
+        return false;
+    }
+
+    char line[BUFFER_SIZE];
+    bool found = false;
+    while (fgets(line, sizeof(line), file)) {
+        char *channel = strtok(line, ",");
+        if (strcmp(channel, old_channel) == 0) {
+            fprintf(temp_file, "%s,%s\n", new_channel, strtok(NULL, "\n"));
+            found = true;
+        } else {
+            fprintf(temp_file, "%s", line);
+        }
+    }
+
+    fclose(file);
+    fclose(temp_file);
+
+    if (found) {
+        remove(channel_path);
+        rename(temp_path, channel_path);
+        snprintf(response, BUFFER_SIZE, "%s berhasil diubah menjadi %s", old_channel, new_channel);
+
+        // Log aktivitas
+        char activity[BUFFER_SIZE];
+        snprintf(activity, BUFFER_SIZE, "EDIT CHANNEL %s TO %s", old_channel, new_channel);
+        log_activity(username, activity);
+    } else {
+        remove(temp_path);
+        snprintf(response, BUFFER_SIZE, "Channel %s not found", old_channel);
+    }
+
+    return found;
+}
+
+// Fungsi untuk menghapus channel
+bool delete_channel(const char *username, const char *channel, char *response) {
+    char channel_path[BUFFER_SIZE];
+    snprintf(channel_path, BUFFER_SIZE, "%s/channel.csv", BASE_PATH);
+
+    FILE *file = fopen(channel_path, "r+");
+    if (!file) {
+        snprintf(response, BUFFER_SIZE, "Failed to open channel.csv");
+        return false;
+    }
+
+    char temp_path[BUFFER_SIZE];
+    snprintf(temp_path, BUFFER_SIZE, "%s/temp.csv", BASE_PATH);
+    FILE *temp_file = fopen(temp_path, "w");
+    if (!temp_file) {
+        fclose(file);
+        snprintf(response, BUFFER_SIZE, "Failed to create temporary file");
+        return false;
+    }
+
+    char line[BUFFER_SIZE];
+    bool found = false;
+    while (fgets(line, sizeof(line), file)) {
+        char *current_channel = strtok(line, ",");
+        if (strcmp(current_channel, channel) == 0) {
+            found = true;
+        } else {
+            fprintf(temp_file, "%s", line);
+        }
+    }
+
+    fclose(file);
+    fclose(temp_file);
+
+    if (found) {
+        remove(channel_path);
+        rename(temp_path, channel_path);
+        snprintf(response, BUFFER_SIZE, "Channel %s berhasil dihapus", channel);
+
+        // Log aktivitas
+        char activity[BUFFER_SIZE];
+        snprintf(activity, BUFFER_SIZE, "DEL CHANNEL %s", channel);
+        log_activity(username, activity);
+    } else {
+        remove(temp_path);
+        snprintf(response, BUFFER_SIZE, "Channel %s not found", channel);
+    }
+
+    return found;
 }
