@@ -4,7 +4,9 @@ gcc -o server server.c -L/usr/local/lib -lbcrypt
 gcc -o discorit discorit.c 
 
 ./server
+
 ./discorit LOGIN new_username -p password
+
 ./discorit REGISTER username2 -p password2
 
 ##diluar channel
