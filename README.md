@@ -2,24 +2,16 @@
 
 How To Play
 
-`gcc -o server server.c -L/usr/local/lib -lbcrypt`
-
-gcc -o discorit discorit.c 
-
-./server
-
-./discorit LOGIN new_username -p password
-
-./discorit REGISTER username2 -p password2
+- `gcc -o server server.c -L/usr/local/lib -lbcrypt`
+- `gcc -o discorit discorit.c`
+- `./server`
+- `./discorit LOGIN new_username -p password`
+- `./discorit REGISTER username2 -p password2`
 
 ##diluar channel
 
-┌──(kali㉿kali)-[~/Documents/fp]
-└─$ ./discorit LOGIN new_username -p password
-Server response: new_username berhasil login
-[new_username] LIST USER
-Server response: new_username userchange username4 
-^C
+- `[new_username] LIST USER`
+
 
 root
 
