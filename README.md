@@ -1,6 +1,9 @@
 # Sisop-FP-2024-MH-IT14
 
-gcc -o server server.c -L/usr/local/lib -lbcrypt
+How To Play
+
+`gcc -o server server.c -L/usr/local/lib -lbcrypt`
+
 gcc -o discorit discorit.c 
 
 ./server
