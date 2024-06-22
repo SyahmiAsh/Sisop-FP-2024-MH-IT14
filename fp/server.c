@@ -15,8 +15,27 @@
 #define USER_FILE "/home/kali/Sisop/FP/DiscorIT/users.csv"
 #define BUF_SIZE 256
 
-char usernameglobal[256];
+void list_channels(char *response) {
+    char path[BUF_SIZE];
+    snprintf(path, sizeof(path), "/home/kali/Sisop/FP/DiscorIT/channels.csv");
+    FILE *file = fopen(path, "r");
+    if (!file) {
+        perror("Failed to open channels.csv");
+        exit(EXIT_FAILURE);
+    }
 
+    char line[BUF_SIZE];
+    char channels[BUF_SIZE] = "";
+    while (fgets(line, sizeof(line), file)) {
+        char channel_name[BUF_SIZE];
+        sscanf(line, "%*d,%[^,],%*s", channel_name);
+        strcat(channels, channel_name);
+        strcat(channels, " ");
+    }
+    fclose(file);
+
+    snprintf(response, BUF_SIZE, "%s", channels);
+}
 
 void create_channel(const char *channel_name, const char *key, const char *username, char *response) {
     char path[BUF_SIZE];
@@ -71,27 +90,6 @@ void create_channel(const char *channel_name, const char *key, const char *usern
     fclose(file);
 
     snprintf(response, BUF_SIZE, "Channel '%s' created successfully", channel_name);
-}
-
-void list_channels(char *response) {
-    char path[BUF_SIZE];
-    snprintf(path, sizeof(path), "/home/kali/Sisop/FP/DiscorIT/channels.csv");
-    FILE *file = fopen(path, "r");
-    if (!file) {
-        perror("Failed to open channels.csv");
-        exit(EXIT_FAILURE);
-    }
-
-    char line[BUF_SIZE];
-    char channel_name[BUF_SIZE];
-    bzero(response, BUF_SIZE);
-    while (fgets(line, sizeof(line), file)) {
-        sscanf(line, "%*d,%[^,],%*s", channel_name);
-        strcat(response, channel_name);
-        strcat(response, " ");
-    }
-
-    fclose(file);
 }
 
 void register_user(const char *username, const char *password, char *response) {
@@ -180,6 +178,7 @@ int user_exists(const char *username) {
 }
 
 void *client_handler(void *newsockfd) {
+    char usernameglobal[256];
     int sock = *(int *)newsockfd;
     free(newsockfd);
     char buffer[256];
@@ -225,13 +224,11 @@ void *client_handler(void *newsockfd) {
                 create_channel(channel_name, key, usernameglobal, response);
             }
         } else if (strcmp(command, "LIST") == 0) {
-            char *arg3 = strtok(NULL, " ");
-            if (strcmp(arg3, "CHANNEL") == 0) {
                 list_channels(response);
-            }
-        } else {
+            
+        }else {
             snprintf(response, BUF_SIZE, "Unknown command");
-        }
+        } 
 
         n = write(sock, response, strlen(response));
         if (n < 0) {
@@ -241,6 +238,7 @@ void *client_handler(void *newsockfd) {
         }
     }
 }
+
 
 
 void mulai_daemon() {
