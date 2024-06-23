@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <bcrypt.h>
 #include <fcntl.h>
+#include <ctype.h>
 
 #define PORT 8080
 #define USER_FILE "/home/kali/Sisop/FP/DiscorIT/users.csv"
@@ -36,6 +37,73 @@ void list_channels(char *response) {
 
     snprintf(response, BUF_SIZE, "%s", channels);
 }
+
+void trim_whitespace(char *str) {
+    char *end;
+
+    // Trim leading space
+    while (isspace((unsigned char)*str)) str++;
+
+    if (*str == 0) {
+        // All spaces?
+        return;
+    }
+
+    // Trim trailing space
+    end = str + strlen(str) - 1;
+    while (end > str && isspace((unsigned char)*end)) end--;
+
+    // Write new null terminator character
+    *(end + 1) = 0;
+}
+
+void join_channel(const char *channel_name, const char *username, char *response) {
+    char trimmed_channel_name[BUF_SIZE];
+    strncpy(trimmed_channel_name, channel_name, BUF_SIZE);
+    trimmed_channel_name[BUF_SIZE - 1] = '\0';  // Ensure null-terminated string
+    trim_whitespace(trimmed_channel_name);
+
+    char path[BUF_SIZE];
+    snprintf(path, sizeof(path), "/home/kali/Sisop/FP/DiscorIT/channels.csv");
+    FILE *file = fopen(path, "r");
+    if (!file) {
+        snprintf(response, BUF_SIZE, "Failed to open channels.csv");
+        return;
+    }
+
+    char line[BUF_SIZE];
+    while (fgets(line, sizeof(line), file)) {
+        char stored_channel_name[BUF_SIZE];
+        sscanf(line, "%*d,%[^,],%*s", stored_channel_name);
+        trim_whitespace(stored_channel_name);  // Trim whitespace from the stored channel name
+
+        if (strcmp(stored_channel_name, trimmed_channel_name) == 0) {
+            fclose(file);
+
+            char channel_dir[BUF_SIZE];
+            snprintf(channel_dir, sizeof(channel_dir), "/home/kali/Sisop/FP/DiscorIT/%s", trimmed_channel_name);
+
+            char user_file[BUF_SIZE];
+            snprintf(user_file, sizeof(user_file), "%s/users.csv", channel_dir);
+            file = fopen(user_file, "a");
+            if (!file) {
+                snprintf(response, BUF_SIZE, "Failed to open or create users.csv");
+                return;
+            }
+
+            fprintf(file, "%s\n", username);
+            fclose(file);
+
+            snprintf(response, BUF_SIZE, "User '%s' joined channel '%s' successfully", username, trimmed_channel_name);
+            return;
+        }
+    }
+
+    fclose(file);
+    snprintf(response, BUF_SIZE, "Channel '%s' not found", trimmed_channel_name);
+}
+
+
 
 void create_channel(const char *channel_name, const char *key, const char *username, char *response) {
     char path[BUF_SIZE];
@@ -226,6 +294,9 @@ void *client_handler(void *newsockfd) {
         } else if (strcmp(command, "LIST") == 0) {
                 list_channels(response);
             
+        }else if (strcmp(command, "JOIN") == 0) {
+            char *channel_name = strtok(NULL, " ");
+            join_channel(channel_name, usernameglobal, response);
         }else {
             snprintf(response, BUF_SIZE, "Unknown command");
         } 
