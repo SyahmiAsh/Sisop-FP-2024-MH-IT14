@@ -19,11 +19,12 @@ void error(const char *msg) {
     perror(msg);
     exit(1);
 }
+
 int main(int argc, char *argv[]) {
     int sockfd;
     struct sockaddr_in serv_addr;
     struct hostent *server;
-    char buffer[256];
+    char buffer[BUF_SIZE];
 
     if (argc < 4) {
         fprintf(stderr, "usage: %s command username password\n", argv[0]);
@@ -48,9 +49,9 @@ int main(int argc, char *argv[]) {
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
         error("ERROR connecting");
 
-    if (argc == 3){ 
+    if (argc == 3) { 
         sprintf(buffer, "%s %s", argv[1], argv[2]);
-    }else if (argc == 4){ 
+    } else if (argc == 4) { 
         sprintf(buffer, "%s %s %s", argv[1], argv[2], argv[3]);
     } else if (argc == 5) {
         sprintf(buffer, "%s %s %s %s", argv[1], argv[2], argv[3], argv[4]);
@@ -60,8 +61,8 @@ int main(int argc, char *argv[]) {
 
     write(sockfd, buffer, strlen(buffer));
 
-    bzero(buffer, 256);
-    ssize_t n = read(sockfd, buffer, 255);
+    bzero(buffer, BUF_SIZE);
+    ssize_t n = read(sockfd, buffer, BUF_SIZE - 1);
     if (n < 0) 
         error("ERROR reading from socket");
     
@@ -82,7 +83,7 @@ int main(int argc, char *argv[]) {
             bzero(buffer, BUF_SIZE);
             fgets(buffer, BUF_SIZE - 1, stdin);
 
-            // Add this block of code
+            // Handle JOIN command
             if (strncmp("JOIN", buffer, 4) == 0) {
                 char *channel_name = strtok(buffer + 5, " \n");
                 if (channel_name) {
@@ -99,9 +100,46 @@ int main(int argc, char *argv[]) {
                     }
                     continue; // Skip the rest of the loop
                 }
-            } else if (strcmp("EXIT\n", buffer) == 0) {
+            } 
+            // Handle EXIT command
+            else if (strcmp("EXIT\n", buffer) == 0) {
                 if (strlen(channel) > 0) {
                     channel[0] = '\0';
+                }
+            } 
+            // Handle CREATE ROOM command
+            else if (strncmp("CREATE ROOM", buffer, 11) == 0) {
+                if (strlen(channel) == 0) {
+                    printf("You need to join a channel first\n");
+                    continue;
+                }
+                char *room_name = strtok(buffer + 12, " \n");
+
+                // Print the extracted room_name for debugging
+                printf("Extracted room_name: %s\n", room_name);
+                printf("chanel_name: %s\n", channel);
+
+                if (room_name) {
+
+                     char command[BUF_SIZE];
+                    strcpy(command, "CREATE ROOM ");
+                    strcat(command, channel);
+                    strcat(command, " ");
+                    strcat(command, room_name);
+                    snprintf(buffer, BUF_SIZE, "%s", command);
+                    // Print the constructed message for debugging
+                    printf("Constructed message: %s\n", buffer);
+
+                    write(sockfd, buffer, strlen(buffer));
+                    bzero(buffer, BUF_SIZE);
+                    n = read(sockfd, buffer, BUF_SIZE - 1);
+                    if (n < 0) 
+                        error("ERROR reading from socket");
+                    printf("%s\n", buffer);
+                    continue; // Skip the rest of the loop
+                } else {
+                    printf("Usage: CREATE ROOM <room_name>\n");
+                    continue;
                 }
             }
 
