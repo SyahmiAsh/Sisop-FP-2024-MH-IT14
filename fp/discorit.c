@@ -10,6 +10,10 @@
 #define PORT 8080
 
 int login = 0;
+char username[50];
+char channel[50] = "";
+char room[50] = "";
+#define BUF_SIZE 256
 
 void error(const char *msg) {
     perror(msg);
@@ -67,10 +71,39 @@ int main(int argc, char *argv[]) {
     }
 
     if (login) {
+        strcpy(username, argv[2]);
         while (1) {
-            printf("[%s] ", argv[2]);
-            bzero(buffer, 256);
-            fgets(buffer, 255, stdin);
+            if (strlen(channel) > 0) {
+                printf("[%s/%s] ", username, channel);
+            } else {
+                printf("[%s] ", username);
+            }
+
+            bzero(buffer, BUF_SIZE);
+            fgets(buffer, BUF_SIZE - 1, stdin);
+
+            // Add this block of code
+            if (strncmp("JOIN", buffer, 4) == 0) {
+                char *channel_name = strtok(buffer + 5, " \n");
+                if (channel_name) {
+                    sprintf(buffer, "JOIN %s", channel_name);
+                    write(sockfd, buffer, strlen(buffer));
+                    bzero(buffer, BUF_SIZE);
+                    n = read(sockfd, buffer, BUF_SIZE - 1);
+                    if (n < 0) 
+                        error("ERROR reading from socket");
+                    printf("%s\n", buffer);
+                    if (strstr(buffer, "User") != NULL && strstr(buffer, "joined channel") != NULL) {
+                        // Extract channel name from the response
+                        sscanf(buffer, "User '%*[^']' joined channel '%49[^']'", channel);
+                    }
+                    continue; // Skip the rest of the loop
+                }
+            } else if (strcmp("EXIT\n", buffer) == 0) {
+                if (strlen(channel) > 0) {
+                    channel[0] = '\0';
+                }
+            }
 
             write(sockfd, buffer, strlen(buffer));
             if (strncmp("exit", buffer, 4) == 0) {
@@ -78,16 +111,19 @@ int main(int argc, char *argv[]) {
                 break;
             }
 
-            bzero(buffer, 256);
-            n = read(sockfd, buffer, 255);
+            bzero(buffer, BUF_SIZE);
+            n = read(sockfd, buffer, BUF_SIZE - 1);
             if (n < 0) 
                 error("ERROR reading from socket");
             
             printf("%s\n", buffer);
+            if (strstr(buffer, "User") != NULL && strstr(buffer, "joined channel") != NULL) {
+                // Extract channel name from the response
+                sscanf(buffer, "User '%*[^']' joined channel '%49[^']'", channel);
+            }
         }
     }
 
     close(sockfd);
     return 0;
 }
-
