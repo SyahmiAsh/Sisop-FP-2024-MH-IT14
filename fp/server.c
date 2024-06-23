@@ -15,6 +15,7 @@
 #define PORT 8080
 #define USER_FILE "/home/kali/Sisop/FP/DiscorIT/users.csv"
 #define BUF_SIZE 256
+#define BUFFER_SIZE 1024
 
 void list_channels(char *response) {
     char path[BUF_SIZE];
@@ -37,6 +38,116 @@ void list_channels(char *response) {
 
     snprintf(response, BUF_SIZE, "%s", channels);
 }
+
+void create_directory(const char *path, int socket) {
+    if (mkdir(path, 0777) == -1) {
+        perror("Failed to create directory");
+        char response[] = "Failed to create directory";
+        if (write(socket, response, strlen(response)) < 0) {
+            perror("Failed to send response to client");
+        }
+        exit(EXIT_FAILURE);
+    }
+}
+
+void log_activity(const char *channel, const char *log_message) {
+    char log_path[256];
+    snprintf(log_path, sizeof(log_path), "/home/kali/Sisop/FP/DiscorIT/%s/admin/log.csv", channel);
+    FILE *log_file = fopen(log_path, "a");
+    if (log_file) {
+        fprintf(log_file, "%s\n", log_message);
+        fclose(log_file);
+    } else {
+        perror("Failed to open log.csv");
+    }
+}
+
+void create_room(const char *username, const char *channel, const char *room, int socket) {
+    char auth_path[256];
+    snprintf(auth_path, sizeof(auth_path), "/home/kali/Sisop/FP/DiscorIT/%s/admin/auth.csv", channel);
+
+    FILE *auth_file = fopen(auth_path, "r");
+    if (!auth_file) {
+        char response[] = "Failed to open auth.csv or you are not joined in the channel";
+        if (write(socket, response, strlen(response)) < 0) {
+            perror("Failed to send response to client");
+        }
+        return;
+    }
+
+    char line[256];
+    bool is_admin = false;
+    bool is_root = false;
+
+    while (fgets(line, sizeof(line), auth_file)) {
+        char *token = strtok(line, ",");
+        if (token == NULL) continue;
+        token = strtok(NULL, ",");
+        if (token == NULL) continue;
+        if (strcmp(token, username) == 0) {
+            token = strtok(NULL, ",");
+            if (strstr(token, "ADMIN") != NULL) {
+                is_admin = true;
+            } else if (strstr(token, "ROOT") != NULL) {
+                is_root = true;
+            }
+        }
+    }
+
+    fclose(auth_file);
+
+    if (!is_admin && !is_root) {
+        char response[] = "You do not have permission to create a room in this channel";
+        if (write(socket, response, strlen(response)) < 0) {
+            perror("Failed to send response to client");
+        }
+        return;
+    }
+
+    char check_path[256];
+    snprintf(check_path, sizeof(check_path), "/home/kali/Sisop/FP/DiscorIT/%s/%s", channel, room);
+    struct stat st;
+    if (stat(check_path, &st) == 0 && S_ISDIR(st.st_mode)) {
+        char response[] = "Room name is already used";
+        if (write(socket, response, strlen(response)) < 0) {
+            perror("Failed to send response to client");
+        }
+        return;
+    }
+
+    char path[256];
+    snprintf(path, sizeof(path), "/home/kali/Sisop/FP/DiscorIT/%s/%s", channel, room);
+    create_directory(path, socket);
+
+    snprintf(path, sizeof(path), "/home/kali/Sisop/FP/DiscorIT/%s/%s/chat.csv", channel, room);
+    FILE *chat_file = fopen(path, "w+");
+    if(chat_file){
+        fclose(chat_file);
+    }else{
+        char response[] = "Failed to create chat.csv file";
+        if (write(socket, response, strlen(response)) < 0) {
+            perror("Failed to send response to client");
+        }
+        return;
+    }
+    
+    char response[BUFFER_SIZE];
+    snprintf(response, sizeof(response), "Room %s created", room);
+    if (write(socket, response, strlen(response)) < 0) {
+        perror("Failed to send response to client");
+    }
+
+    char log_message[100];
+    if(is_root){
+        snprintf(log_message, sizeof(log_message), "ROOT created room %s", room);
+    }else{
+        snprintf(log_message, sizeof(log_message), "ADMIN created room %s", room);
+    }
+    log_activity(channel, log_message);
+}
+
+
+
 
 void trim_whitespace(char *str) {
     char *end;
@@ -244,7 +355,6 @@ int user_exists(const char *username) {
     fclose(file);
     return 0;
 }
-
 void *client_handler(void *newsockfd) {
     char usernameglobal[256];
     int sock = *(int *)newsockfd;
@@ -284,20 +394,34 @@ void *client_handler(void *newsockfd) {
                 strcpy(usernameglobal, username); // copy username to global variable
             }
         } else if (strcmp(command, "CREATE") == 0) {
-            char *arg3 = strtok(NULL, " ");
-            if (strcmp(arg3, "CHANNEL") == 0) {
+            char *token = strtok(NULL, " ");
+            if (token == NULL) {
+                strcpy(response, "Format perintah CREATE tidak valid");
+            } else if (strcmp(token, "CHANNEL") == 0) {
                 char *channel_name = strtok(NULL, " ");
                 strtok(NULL, " "); // skip "-k"
                 char *key = strtok(NULL, " ");
                 create_channel(channel_name, key, usernameglobal, response);
+            } else if (strcmp(token, "ROOM") == 0) {
+                char *channel_name = strtok(NULL, " ");
+                char *room = strtok(NULL, " ");
+                
+                // Print debug information to validate parsed values
+                printf("Parsed channel_name: %s\n", channel_name);
+                printf("Parsed room: %s\n", room);
+
+                if (channel_name == NULL || room == NULL) {
+                    strcpy(response, "Penggunaan perintah: CREATE ROOM <channel> <room>");
+                } else {
+                    create_room(usernameglobal, channel_name, room, sock);
+                }
             }
         } else if (strcmp(command, "LIST") == 0) {
-                list_channels(response);
-            
-        }else if (strcmp(command, "JOIN") == 0) {
+            list_channels(response);
+        } else if (strcmp(command, "JOIN") == 0) {
             char *channel_name = strtok(NULL, " ");
             join_channel(channel_name, usernameglobal, response);
-        }else {
+        } else {
             snprintf(response, BUF_SIZE, "Unknown command");
         } 
 
