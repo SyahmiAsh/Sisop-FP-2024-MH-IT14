@@ -5,14 +5,6 @@ Laporan pengerjaan Final Project Sistem Operasi 2024 oleh Kelompok IT14
 2. Muhammad Faqih Husain       : 5027231023
 3. Muhammad Syahmi Ash Shidqi  : 5027231085
 
-## DiscorIT
-### Bagaimana Program Diakses
-- Untuk mengakses DiscorIT, user perlu membuka program client (discorit). discorit hanya bekerja sebagai client yang mengirimkan request user kepada server.
-- Program server berjalan sebagai server yang menerima semua request dari client dan mengembalikan response kepada client sesuai ketentuan pada soal. Program server berjalan sebagai daemon. 
-- Untuk hanya menampilkan chat, user perlu membuka program client (monitor). Lebih lengkapnya pada poin monitor.
-- Program client dan server berinteraksi melalui socket.
-- Server dapat terhubung dengan lebih dari satu client.
-
 ### Disclaimer
 Program server, discorit, dan monitor TIDAK DIPERBOLEHKAN menggunakan perintah system();
 
@@ -135,6 +127,14 @@ CREATE CHANNEL care -k care123
 LIST CHANNEL
 LIST USER
 ```
+
+## DiscorIT
+### Bagaimana Program Diakses
+- Untuk mengakses DiscorIT, user perlu membuka program client (discorit). discorit hanya bekerja sebagai client yang mengirimkan request user kepada server.
+- Program server berjalan sebagai server yang menerima semua request dari client dan mengembalikan response kepada client sesuai ketentuan pada soal. Program server berjalan sebagai daemon. 
+- Untuk hanya menampilkan chat, user perlu membuka program client (monitor). Lebih lengkapnya pada poin monitor.
+- Program client dan server berinteraksi melalui socket.
+- Server dapat terhubung dengan lebih dari satu client.
 
 
 
