@@ -832,9 +832,10 @@ int main() {
 }
 ```
 
-Monitor
+#### Monitor
+Pada progam monitor.c ini berfungsi untuk menghubungkan antara program klien yang terhubung ke server untuk memantau dan menampilkan pesan obrolan secara real-time dari saluran dan ruangan tertentu dalam sebuah sistem obrolan. Ini mencakup fungsionalitas untuk login, mengirim perintah ke server, dan menerima pesan obrolan. Berikut ini merupakan kode untuk bagian monitor.c
 
-```c
+```
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -843,7 +844,71 @@ Monitor
 
 #define PORT 8080
 #define BUFFER_SIZE 1024
+
+void monitor_chat(int sock, const char *channel, const char *room);
+
+int main(int argc, char const *argv[]) {
+    int sock = 0;
+    struct sockaddr_in serv_addr;
+    char buffer[BUFFER_SIZE] = {0};
+
+    if (argc < 5) {
+        printf("Usage: %s LOGIN <user> -p <password>\n", argv[0]);
+        return -1;
+    }
+
+    const char *username = argv[2];
+    const char *password = argv[4];
+
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        printf("\n Socket creation error \n");
+        return -1;
+    }
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(PORT);
+
+    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
+        printf("\nInvalid address/ Address not supported \n");
+        return -1;
+    }
+
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        printf("\nConnection Failed \n");
+        return -1;
+    }
+
+    printf("Connected to the server\n");
+
+    // Send login command
+char login_command[BUFFER_SIZE];
+snprintf(login_command, BUFFER_SIZE, "LOGIN %s -p %s", username, password);
+send(sock, login_command, strlen(login_command), 0);
+printf("Sent login command: %s\n", login_command);
+
+
+    monitor_chat(sock, "care", "urban");
+
+    return 0;
+}
+
+void monitor_chat(int sock, const char *channel, const char *room) {
+    char command[BUFFER_SIZE];
+    snprintf(command, BUFFER_SIZE, "%s -channel %s -room %s", "qurbancare", channel, room);
+    send(sock, command, strlen(command), 0);
+    printf("Sent monitor command: %s\n", command);
+
+    char response[BUFFER_SIZE];
+    while (read(sock, response, BUFFER_SIZE) > 0) {
+        printf("Chat: %s\n", response);
+    }
+}
+
 ```
+
+Berikut ini merupakan cara untuk menggunakan program tersebut 
+- Compile program dengan menggunakan `gcc -o monitor monitor.c`
+- Menjalankan program dengan menggunakan `./monitor LOGIN <user> -p <pass user>`
 
 How To Play
 
@@ -902,6 +967,9 @@ LIST USER
 ![Screenshot (785)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/7156e609-66d4-437c-b0bc-ef740606230f)
 
 #### monitor.c
+
+![Screenshot (786)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/bab253c9-5386-4531-9ca9-16d46b78d8a4)
+
 
 ### Kendala
 Masih sampai login, register,create channel, join channel,list channel, create room
