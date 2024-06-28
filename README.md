@@ -881,7 +881,7 @@ LIST USER
 
 ### Screenshots
 
-discorit.c
+### discorit.c
 
 ##### Login & Register
 ![WhatsApp Image 2024-06-28 at 20 50 14](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/149950475/b216b938-38f2-4aea-900c-a5ea308a3305)
@@ -894,14 +894,14 @@ discorit.c
 
 ![Screenshot (784)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/7c3cd9b0-2392-4038-87b7-2b9f50c4e464)
 
-server.c
+#### server.c
 
 ##### Login & Register
 ![WhatsApp Image 2024-06-28 at 20 49 20](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/149950475/826b1fff-188e-4802-a2c7-600f041b1535)
 
 ![Screenshot (785)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/7156e609-66d4-437c-b0bc-ef740606230f)
 
-monitor.c
+#### monitor.c
 
 ### Kendala
 Masih sampai login, register,create channel, join channel,list channel, create room
