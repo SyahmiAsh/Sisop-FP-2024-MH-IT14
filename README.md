@@ -224,6 +224,46 @@ Pada fungsi ini terdapat beberapa fitur di dalamnya, seperti mengisiasi dan vali
 
             bzero(buffer, BUF_SIZE);
             fgets(buffer, BUF_SIZE - 1, stdin);
+##### Fitur Create Room 
+Didalam program discorit.c terdapat sebuah fitur untuk membuat room yang terdapat di dalam sebuah channel. Fitur ini dapat membantu untuk membuat sebuah room baru di dalam channel
+
+            else if (strncmp("CREATE ROOM", buffer, 11) == 0)
+            {
+                if (strlen(channel) == 0)
+                {
+                    printf("You need to join a channel first\n");
+                    continue;
+                }
+                char *room_name = strtok(buffer + 12, " \n");
+
+                if (room_name)
+                {
+                    char command[BUF_SIZE];
+                    strcpy(command, "CREATE ROOM ");
+                    strcat(command, channel);
+                    strcat(command, " ");
+                    strcat(command, room_name);
+                    snprintf(buffer, BUF_SIZE, "%s", command);
+
+                    write(sockfd, buffer, strlen(buffer));
+                    bzero(buffer, BUF_SIZE);
+                    n = read(sockfd, buffer, BUF_SIZE - 1);
+                    if (n < 0)
+                        error("ERROR reading from socket");
+                    printf("%s\n", buffer);
+                    continue;
+                }
+                else
+                {
+                    printf("Usage: CREATE ROOM <room_name>\n");
+                    continue;
+                }
+            }
+Untuk dapat menjalankan fitur ini dapat dilakukan dengan format command seperti berikut ini 
+
+      [user/channel] CREATE ROOM room 
+      Room room dibuat
+
 ##### Fitur Join Channel 
 Dalam program untuk fitur join channel ini dibuat dengan tujuan user dapat bergabung/join menuju channel yang telah tersedia. Berikut merupakan kode untuk menjalankan fitur tersebut 
                
@@ -247,7 +287,16 @@ Dalam program untuk fitur join channel ini dibuat dengan tujuan user dapat berga
                       }
                   }
 
+Untuk menjalankan fitur ini dapat dilakukan dengan format seperti berikut ini 
+- Untuk admin dan root 
+     
+      [user] JOIN channel
+      [user/channel] 
+- Bagi user yang baru pertamakali masuk channel akan dibatasi aksesnya, sehingga terdapat key. Ketika user sudah pernah masuk maka user tidak perlu mengisi key
 
+      [user] JOIN channel
+      Key: key
+      [user/channel]   
 
 
 How To Play
