@@ -65,6 +65,42 @@ DiscorIT/
 - Setiap user harus memiliki username dan password untuk mengakses DiscorIT. Username, password, dan global role disimpan dalam file user.csv.
 - Jika tidak ada user lain dalam sistem, user pertama yang mendaftar otomatis mendapatkan role "ROOT". Username harus bersifat unique dan password wajib di encrypt menggunakan menggunakan bcrypt.
 
+```
+bool login_user(const char *username, const char *password, char *response) {
+    FILE *file = fopen(USER_FILE, "r");
+    if (!file) {
+        perror("Failed to open user file");
+        snprintf(response, BUF_SIZE, "Failed to login user\n");
+        return 0;
+    }
+
+    char line[BUF_SIZE];
+    while (fgets(line, sizeof(line), file)) {
+        char stored_username[BUF_SIZE], stored_hash[BCRYPT_HASHSIZE];
+        sscanf(line, "%*d,%[^,],%[^,],%*s", stored_username, stored_hash);
+        if (strcmp(stored_username, username) == 0) {
+            int check = bcrypt_checkpw(password, stored_hash);
+            if (check == 0) {
+                fclose(file);
+                snprintf(response, BUF_SIZE, "berhasil");
+                return 1;
+            } else if (check == -1) {
+                fclose(file);
+                snprintf(response, BUF_SIZE, "Error checking password for %s\n", username);
+            } else {
+                fclose(file);
+                snprintf(response, BUF_SIZE, "Incorrect password for %s\n", username);
+            }
+            return 0;
+        }
+    }
+
+    fclose(file);
+    snprintf(response, BUF_SIZE, "Username %s not found\n", username);
+    return 0;
+}
+```
+
 
 
 How To Play
