@@ -61,6 +61,9 @@ DiscorIT/
 ||sender string|
 ||chat string|
 
+### A.Autentikasi
+- Setiap user harus memiliki username dan password untuk mengakses DiscorIT. Username, password, dan global role disimpan dalam file user.csv.
+- Jika tidak ada user lain dalam sistem, user pertama yang mendaftar otomatis mendapatkan role "ROOT". Username harus bersifat unique dan password wajib di encrypt menggunakan menggunakan bcrypt.
 
 
 
