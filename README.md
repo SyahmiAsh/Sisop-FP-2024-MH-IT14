@@ -1,4 +1,9 @@
 # Sisop-FP-2024-MH-IT14
+Laporan pengerjaan Final Project Sistem Operasi 2024 oleh Kelompok IT14
+## Praktikan Sistem Operasi Kelompok IT14
+1. Tsaldia Hukma Cita          : 5027231036
+2. Muhammad Faqih Husain       : 5027231023
+3. Muhammad Syahmi Ash Shidqi  : 5027231085
 
 How To Play
 
