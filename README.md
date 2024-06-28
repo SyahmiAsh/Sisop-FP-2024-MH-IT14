@@ -101,6 +101,34 @@ bool login_user(const char *username, const char *password, char *response) {
 }
 ```
 
+### Program discorit.c
+Program discorit.c merupakan program client yang berfungsi untuk terhubung dengan server chat melalui socket. Program ini memungkinkan pengguna untuk melakukan beberapa operasi dasar seperti login, bergabung dengan channel, membuat room dalam channel, dan keluar dari program. Berikut adalah penjelasan lengkap mengenai kode tersebut dan fungsinya:
+#### 1. Header dan Deklarasi Global
+```
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+
+#define PORT 8080
+
+int login = 0;
+char username[50];
+char channel[50] = "";
+char room[50] = "";
+#define BUF_SIZE 256
+```
+- Header menyertakan pustaka yang diperlukan untuk operasi input/output (stdio.h), manajemen memori (stdlib.h), manajemen string (string.h), operasi sistem POSIX (unistd.h), dan operasi socket (sys/types.h, sys/socket.h, netinet/in.h, netdb.h).
+- Makro: Mendefinisikan port server (PORT) dan ukuran buffer (BUF_SIZE).
+- Dalam program ini menggunakan variabel global seperti berikut ini,
+  - login: Menyimpan status login (0 = belum login, 1 = sudah login).
+  - username, channel, room: Menyimpan informasi username, nama channel, dan nama room.
+
+
 
 
 How To Play
