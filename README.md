@@ -879,6 +879,17 @@ LIST CHANNEL
 LIST USER
 ```
 
+### Screenshots
+
+discorit.c
+
+Server.c
+
+monitor.c
+
+### Kendala
+
+
 
 
 
