@@ -894,7 +894,6 @@ discorit.c
 
 ![Screenshot (784)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/7c3cd9b0-2392-4038-87b7-2b9f50c4e464)
 
-
 server.c
 
 ##### Login & Register
@@ -902,12 +901,10 @@ server.c
 
 ![Screenshot (785)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/7156e609-66d4-437c-b0bc-ef740606230f)
 
-
-
-
 monitor.c
 
 ### Kendala
+Masih sampai login, register,create channel, join channel,list channel, create room
 
 
 
