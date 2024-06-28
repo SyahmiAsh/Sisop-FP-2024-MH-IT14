@@ -128,6 +128,125 @@ char room[50] = "";
   - login: Menyimpan status login (0 = belum login, 1 = sudah login).
   - username, channel, room: Menyimpan informasi username, nama channel, dan nama room.
 
+#### 2. Fungsi 'error'
+Fungsi 'error' dalam program ini berguna untuk menampilkan pesan error ketika terjadi kesalahan dan keluar dari program
+
+      void error(const char *msg)
+      {
+          perror(msg);
+          exit(1);
+      }
+
+
+#### 3. Fungsi 'main'
+Pada fungsi ini terdapat beberapa fitur di dalamnya, seperti mengisiasi dan validasi argumen, menghubungkan dengan server, mengirim data menuju server, membaca respon dari user. Berikut ini merupakan kode untuk melakukan tugas tersebut
+- Mengisiasi dan validasi argumen
+  
+      int main(int argc, char *argv[])
+      {
+          int sockfd;
+          struct sockaddr_in serv_addr;
+          struct hostent *server;
+          char buffer[BUF_SIZE];
+      
+          if (argc < 4)
+          {
+              fprintf(stderr, "usage: %s command username password\n", argv[0]);
+              exit(0);
+          }
+- Menghubungkan dengan server
+
+            sockfd = socket(AF_INET, SOCK_STREAM, 0);
+          if (sockfd < 0)
+              error("ERROR opening socket");
+      
+          server = gethostbyname("localhost");
+          if (server == NULL)
+          {
+              fprintf(stderr, "ERROR, no such host\n");
+              exit(0);
+          }
+      
+          bzero((char *)&serv_addr, sizeof(serv_addr));
+          serv_addr.sin_family = AF_INET;
+          bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
+          serv_addr.sin_port = htons(PORT);
+      
+          if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+              error("ERROR connecting");
+- Mengirim data menuju server
+
+          if (argc == 3)
+          {
+              sprintf(buffer, "%s %s", argv[1], argv[2]);
+          }
+          else if (argc == 4)
+          {
+              sprintf(buffer, "%s %s %s", argv[1], argv[2], argv[3]);
+          }
+          else if (argc == 5)
+          {
+              sprintf(buffer, "%s %s %s %s", argv[1], argv[2], argv[3], argv[4]);
+          }
+          else if (argc == 6)
+          {
+              sprintf(buffer, "%s %s %s %s %s", argv[1], argv[2], argv[3], argv[4], argv[5]);
+          }
+      
+          write(sockfd, buffer, strlen(buffer));
+- Membaca respon dari server
+
+          bzero(buffer, BUF_SIZE);
+          ssize_t n = read(sockfd, buffer, BUF_SIZE - 1);
+          if (n < 0)
+              error("ERROR reading from socket");
+      
+          printf("%s\n", buffer);
+          if (strncmp("berhasil", buffer, 8) == 0)
+          {
+              login = 1;
+          }
+- Loop interaksi user setelah login
+
+          if (login)
+          {
+              strcpy(username, argv[2]);
+              while (1)
+              {
+                  if (strlen(channel) > 0)
+                  {
+                      printf("[%s/%s] ", username, channel);
+                  }
+                  else
+                  {
+                      printf("[%s] ", username);
+                  }
+
+            bzero(buffer, BUF_SIZE);
+            fgets(buffer, BUF_SIZE - 1, stdin);
+##### Fitur Join Channel 
+Dalam program untuk fitur join channel ini dibuat dengan tujuan user dapat bergabung/join menuju channel yang telah tersedia. Berikut merupakan kode untuk menjalankan fitur tersebut 
+               
+                  if (strncmp("JOIN", buffer, 4) == 0)
+                  {
+                      char *channel_name = strtok(buffer + 5, " \n");
+                      if (channel_name)
+                      {
+                          sprintf(buffer, "JOIN %s", channel_name);
+                          write(sockfd, buffer, strlen(buffer));
+                          bzero(buffer, BUF_SIZE);
+                          n = read(sockfd, buffer, BUF_SIZE - 1);
+                          if (n < 0)
+                              error("ERROR reading from socket");
+                          printf("%s\n", buffer);
+                          if (strstr(buffer, "User") != NULL && strstr(buffer, "joined channel") != NULL)
+                          {
+                              sscanf(buffer, "User '%*[^']' joined channel '%49[^']'", channel);
+                          }
+                          continue;
+                      }
+                  }
+
 
 
 
@@ -138,6 +257,7 @@ How To Play
 - `./server`
 - `./discorit LOGIN new_username -p password`
 - `./discorit REGISTER username2 -p password2`
+
 
 ### Diluar channel
 - `[new_username] LIST USER`
