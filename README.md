@@ -882,8 +882,12 @@ LIST USER
 ### Screenshots
 
 discorit.c
+![Screenshot (781)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/30afb1b2-e2a8-4897-936c-91638f9feb48)
 
-Server.c
+
+server.c
+![Screenshot (782)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/8fc52c3c-55e7-49e5-9b8b-fe2f31f83461)
+
 
 monitor.c
 
