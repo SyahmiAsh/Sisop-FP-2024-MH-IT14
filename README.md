@@ -260,8 +260,10 @@ Untuk menjalankan fitur ini dapat dilakukan dengan format seperti berikut ini
 
 ### Program server.c
 Program server berjalan sebagai server yang menerima semua request dari client dan mengembalikan response kepada client sesuai ketentuan pada soal. Program server berjalan sebagai daemon. Berikut adalah penjelasan lengkap mengenai kode tersebut dan fungsinya:
+
 #### 1. Header dan Deklarasi Global
-```
+
+```c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -286,7 +288,8 @@ Program server berjalan sebagai server yang menerima semua request dari client d
 
 #### 2. Fungsi 'list_channels'  
 Fungsi list_channels bertujuan untuk membaca semua nama channel dari sebuah file CSV bernama `channels.csv` dan menggabungkannya menjadi satu string yang disimpan dalam variabel `response`
-```
+
+```c
 void list_channels(char *response) {
     char path[BUF_SIZE];
     snprintf(path, sizeof(path), "/home/kali/Sisop/FP/DiscorIT/channels.csv");
@@ -313,7 +316,7 @@ void list_channels(char *response) {
 #### 2. Fungsi 'create_directory'
 Fungsi create_directory bertujuan untuk membuat sebuah direktori baru dengan path yang diberikan dan mengirimkan respon ke klien melalui socket jika terjadi kegagalan
 
-```
+```c
 void create_directory(const char *path, int socket) {
     if (mkdir(path, 0777) == -1) {
         perror("Failed to create directory");
@@ -329,7 +332,7 @@ void create_directory(const char *path, int socket) {
 ### 3. Fungsi 'log_activity'
 Fungsi log_activity digunakan untuk mencatat aktivitas atau log pesan ke dalam sebuah file CSV yang berada di direktori spesifik, sesuai dengan nama channel yang diberikan.
 
-```
+```c
 void log_activity(const char *channel, const char *log_message) {
     char log_path[256];
     snprintf(log_path, sizeof(log_path), "/home/kali/Sisop/FP/DiscorIT/%s/admin/log.csv", channel);
@@ -346,7 +349,7 @@ void log_activity(const char *channel, const char *log_message) {
 ### 4. Fungsi 'create_room'
 Fungsi create_room digunakan untuk membuat sebuah ruangan (room) baru dalam sebuah channel pada sistem DiscorIT, dengan memeriksa otorisasi pengguna berdasarkan file auth.csv dan melakukan serangkaian tindakan sesuai dengan izin yang dimiliki pengguna.
 
-```
+```c
 void create_room(const char *username, const char *channel, const char *room, int socket) {
     char auth_path[256];
     snprintf(auth_path, sizeof(auth_path), "/home/kali/Sisop/FP/DiscorIT/%s/admin/auth.csv", channel);
@@ -436,7 +439,7 @@ void create_room(const char *username, const char *channel, const char *room, in
 ### 5. Fungsi 'trim_whitespace'
 Fungsi trim_whitespace digunakan untuk menghapus spasi (whitespace) yang berlebihan di awal dan akhir sebuah string yang diberikan, dengan mengubah string tersebut langsung.
 
-```
+```c
 void trim_whitespace(char *str) {
     char *end;
 
@@ -458,9 +461,9 @@ void trim_whitespace(char *str) {
 ```
 
 ### 6. Fungsi 'join_channel'
+Fungsi join_channel bertanggung jawab untuk memungkinkan seorang pengguna bergabung ke dalam sebuah channel (saluran) dalam aplikasi DiscorIT. 
 
-
-```
+```c
 void join_channel(const char *channel_name, const char *username, char *response) {
     char trimmed_channel_name[BUF_SIZE];
     strncpy(trimmed_channel_name, channel_name, BUF_SIZE);
@@ -511,7 +514,7 @@ void join_channel(const char *channel_name, const char *username, char *response
 ### 7. Fungsi 'create_channel'
 Fungsi join_channel digunakan untuk memproses proses bergabungnya seorang pengguna ke dalam sebuah channel dalam sistem DiscorIT. 
 
-```
+```c
 void create_channel(const char *channel_name, const char *key, const char *username, char *response) {
     char path[BUF_SIZE];
     snprintf(path, sizeof(path), "/home/kali/Sisop/FP/DiscorIT/channels.csv");
@@ -569,9 +572,9 @@ void create_channel(const char *channel_name, const char *key, const char *usern
 ```
 
 ### 8. Fungsi 'register_user'
+Fungsi register_user digunakan untuk mendaftarkan seorang pengguna baru ke dalam sistem.
 
-
-```
+```c
 void register_user(const char *username, const char *password, char *response) {
     if (user_exists(username)) {
         snprintf(response, BUF_SIZE, "Username '%s' already registered", username);
@@ -607,7 +610,7 @@ void register_user(const char *username, const char *password, char *response) {
 ### 9. Fungsi 'Login'
 Fungsi register_user digunakan untuk mendaftarkan pengguna baru dengan menyimpan informasi username, password yang di-hash, dan peran pengguna ke dalam sebuah file.
 
-```
+```c
 bool login_user(const char *username, const char *password, char *response) {
     FILE *file = fopen(USER_FILE, "r");
     if (!file) {
@@ -647,7 +650,7 @@ bool login_user(const char *username, const char *password, char *response) {
 ### 10. Fungsi 'user_exists'
 Fungsi user_exists bertujuan untuk memeriksa apakah sebuah username sudah terdaftar dalam file pengguna (USER_FILE). 
 
-```
+```c
 int user_exists(const char *username) {
     FILE *file = fopen(USER_FILE, "r");
     if (!file) {
@@ -672,7 +675,7 @@ int user_exists(const char *username) {
 ### 11. Fungsi 'client_handler'
 Fungsi client_handler bertanggung jawab untuk menerima, memproses, dan menanggapi perintah dari client dalam konteks server DiscorIT. Ini memungkinkan server untuk berinteraksi dengan multiple client secara simultan, menjalankan perintah sesuai dengan protokol yang ditetapkan, dan memberikan respons yang sesuai kembali ke client.
 
-```
+```c
 void *client_handler(void *newsockfd) {
     char usernameglobal[256];
     int sock = *(int *)newsockfd;
@@ -756,7 +759,7 @@ void *client_handler(void *newsockfd) {
 ### 12. Fungsi 'Daemon'
 Fungsi mulai_daemon digunakan untuk mengubah proses saat ini menjadi sebuah daemon dalam sistem.
 
-```
+```c
 void mulai_daemon() {
     pid_t pid;
     pid = fork();
@@ -776,7 +779,7 @@ void mulai_daemon() {
 ### 13. Fungsi 'mulia_socket'
 Fungsi mulai_socket bertanggung jawab untuk menginisialisasi socket server dan menerima koneksi dari client.
 
-```
+```c
 void mulai_socket() {
     int sockfd;
     struct sockaddr_in serv_addr, cli_addr;
@@ -821,12 +824,25 @@ void mulai_socket() {
 ### Fungsi Utama
 Program utama (main()) ini secara berturut-turut memanggil fungsi mulai_daemon() untuk menginisialisasi proses sebagai daemon, dan kemudian mulai_socket() untuk menginisialisasi dan menjalankan server DiscorIT. Dengan ini, program siap menerima koneksi dari client, menangani perintah-perintah yang diterima, dan memberikan respons kembali kepada client dalam konteks aplikasi jaringan server.
 
-```
+```c
 int main() {
     mulai_daemon();
     mulai_socket();
     return 0;
 }
+```
+
+Monitor
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+#define PORT 8080
+#define BUFFER_SIZE 1024
 ```
 
 How To Play
