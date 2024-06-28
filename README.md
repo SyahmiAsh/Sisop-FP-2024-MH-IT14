@@ -900,6 +900,9 @@ server.c
 ##### Login & Register
 ![WhatsApp Image 2024-06-28 at 20 49 20](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/149950475/826b1fff-188e-4802-a2c7-600f041b1535)
 
+![Screenshot (785)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/7156e609-66d4-437c-b0bc-ef740606230f)
+
+
 
 
 monitor.c
