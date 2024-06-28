@@ -886,6 +886,15 @@ discorit.c
 ##### Login & Register
 ![WhatsApp Image 2024-06-28 at 20 50 14](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/149950475/b216b938-38f2-4aea-900c-a5ea308a3305)
 
+##### Create Channel, Join Channel & Create Room 
+
+![Screenshot (783)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/63f86732-3482-49e6-91cc-eb9b798d522e)
+
+##### Log 
+
+![Screenshot (784)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/7c3cd9b0-2392-4038-87b7-2b9f50c4e464)
+
+
 server.c
 
 ##### Login & Register
