@@ -972,7 +972,7 @@ LIST USER
 
 
 ### Kendala
-Masih sampai login, register,create channel, join channel,list channel, create room
+Masih sampai login, register,create channel, join channel,list channel, create room, menjalankan monitor 
 
 
 
