@@ -40,12 +40,12 @@ DiscorIT/
                - room2/
 ```
 ### Keterangan setiap file
-
-| DiscorIT |
-| users.csv | id_user	int (mulai dari 1) |
-|           | name string |
-|           | password	string (di encrypt menggunakan bcrypt biar ga tembus) |
-|           | global_role	string (pilihannya: ROOT / USER) |
+| Nama File  | Isi File |
+| ------------- | ------------- |
+|  users.csv  | id_user	int (mulai dari 1)  |
+|  | name string |
+|  | password string (di encrypt menggunakan bcrypt biar ga tembus) |
+|  | global_role string (pilihannya: ROOT / USER) |
 
 channels.csv
 id_channel	int  (mulai dari 1)
