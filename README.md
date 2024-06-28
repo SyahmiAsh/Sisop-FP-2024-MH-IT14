@@ -883,12 +883,14 @@ LIST USER
 
 discorit.c
 
-![Screenshot (781)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/30afb1b2-e2a8-4897-936c-91638f9feb48)
-
+##### Login & Register
+![WhatsApp Image 2024-06-28 at 20 50 14](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/149950475/b216b938-38f2-4aea-900c-a5ea308a3305)
 
 server.c
 
-![Screenshot (782)](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/150339585/8fc52c3c-55e7-49e5-9b8b-fe2f31f83461)
+##### Login & Register
+![WhatsApp Image 2024-06-28 at 20 49 20](https://github.com/SyahmiAsh/Sisop-FP-2024-MH-IT14/assets/149950475/826b1fff-188e-4802-a2c7-600f041b1535)
+
 
 
 monitor.c
